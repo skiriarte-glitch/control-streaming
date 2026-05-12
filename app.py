@@ -5,7 +5,7 @@ from datetime import datetime
 import urllib.parse
 
 st.set_page_config(page_title="Control Streaming", layout="wide")
-st.title("🚀 Mi Control de Streaming")
+st.title("🎬 Mi Control de Streaming")
 
 # Conexión
 conn = st.connection("gsheets", type=GSheetsConnection)
