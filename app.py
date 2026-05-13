@@ -29,7 +29,7 @@ if password == CLAVE_MAESTRA:
     tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=40.0, step=0.1)
     
     # 1. INVENTARIO DISPONIBLE (Sustituye tu color morado)
-    st.markdown("### 💜 Perfiles Disponibles (Inventario)")
+    st.markdown("### 💜 Perfiles Disponibles")
     if 'nombre' in df.columns:
         disponibles = df[
             (df['nombre'].str.contains('DISPONIBLE|VACANTE|LIBRE', case=False, na=False)) | 
