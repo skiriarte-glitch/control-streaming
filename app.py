@@ -4,31 +4,31 @@ import pandas as pd
 from datetime import datetime, timedelta
 import urllib.parse
 
-# Configuración
+# Configuración de la pestaña
 st.set_page_config(page_title="Control Skarleth", layout="wide")
+
+# TÍTULO ACTUALIZADO
 st.title("🎬 Sistema de Control Streaming")
 
 # --- CONTRASEÑA ---
-CLAVE_MAESTRA = "Z2599393F" 
+CLAVE_MAESTRA = "Skarleth2026" 
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 df = conn.read()
 
-# Limpieza profunda de columnas
+# Limpieza y unificación de columnas
 df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o').replace('status', 'estatus') for c in df.columns]
 
 password = st.sidebar.text_input("Contraseña", type="password")
 
 if password == CLAVE_MAESTRA:
-    tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=0.1)
+    # TASA INICIAL CONFIGURADA EN 660 (Tasa Binance)
+    tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
     
-    # 1. SECCIÓN DE INVENTARIO (Corregida)
+    # 1. SECCIÓN DE INVENTARIO
     st.markdown("### 💜 Perfiles Disponibles (Inventario)")
     if 'nombre' in df.columns:
-        # Lógica segura para buscar disponibles
         mask_nombre = df['nombre'].str.contains('DISPONIBLE|VACANTE|LIBRE', case=False, na=False)
-        
-        # Lógica segura para la columna estatus/status
         mask_estatus = pd.Series([False] * len(df))
         if 'estatus' in df.columns:
             mask_estatus = df['estatus'].str.contains('libre', case=False, na=False)
@@ -43,7 +43,7 @@ if password == CLAVE_MAESTRA:
 
     st.divider()
 
-    # 2. GESTIÓN DE COBROS Y ENTREGAS
+    # 2. GESTIÓN DE CLIENTES
     st.subheader("📅 Gestión de Clientes")
     ahora = datetime.now()
 
@@ -64,6 +64,7 @@ if password == CLAVE_MAESTRA:
             if pd.isna(vence_dt): continue
             
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+            # El cálculo ahora usará los 660 por defecto
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
             estatus = str(row.get('estatus', '')).lower()
