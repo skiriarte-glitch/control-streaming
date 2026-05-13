@@ -4,13 +4,17 @@ import pandas as pd
 from datetime import datetime, timedelta
 import urllib.parse
 
+# Configuración del nombre en la pestaña del navegador
 st.set_page_config(page_title="Control Skarleth", layout="wide")
+st.title("🎬 Sistema de Control Streaming")
 
 # --- CONTRASEÑA ---
 CLAVE_MAESTRA = "Z2599393F" 
 
+# Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
 df = conn.read()
+# Limpieza de nombres de columnas para evitar errores de lectura
 df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c in df.columns]
 
 password = st.sidebar.text_input("Contraseña", type="password")
@@ -18,7 +22,7 @@ password = st.sidebar.text_input("Contraseña", type="password")
 if password == CLAVE_MAESTRA:
     tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=40.0, step=0.1)
     
-    # 1. INVENTARIO DISPONIBLE
+    # 1. SECCIÓN DE INVENTARIO (Lo que verás primero)
     st.markdown("### 💜 Perfiles Disponibles (Inventario)")
     if 'nombre' in df.columns:
         disponibles = df[
@@ -40,12 +44,12 @@ if password == CLAVE_MAESTRA:
     if 'vencimiento' in df.columns:
         df['vencimiento'] = pd.to_datetime(df['vencimiento'], errors='coerce')
         
-        # Ordenar por fecha para ver los más urgentes arriba
+        # Ordenar para ver vencimientos más cercanos arriba
         df = df.sort_values(by='vencimiento')
 
         for index, row in df.iterrows():
             nombre = row.get('nombre', 'Cliente')
-            # Ignorar si es una fila de "Disponible"
+            # Ignorar filas vacías o de inventario en la sección de cobros
             if str(nombre).lower() in ['disponible', 'vacante', 'libre']: continue
             
             servicio = str(row.get('servicio', 'Servicio')).strip()
@@ -57,13 +61,13 @@ if password == CLAVE_MAESTRA:
             if pd.isna(vence_dt): continue
             
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+            # Formato de moneda para bolívares
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # --- LÓGICA DE COBRO ---
             estatus = str(row.get('estatus', '')).lower()
             color = "🔴" if vence_dt < ahora else "🟡"
             
-            # Solo mostrar botones si NO está marcado como "pagado"
+            # --- BLOQUE DE COBRO ---
             if estatus != 'pagado' and vence_dt <= ahora + timedelta(days=3):
                 with st.expander(f"{color} COBRAR A: {nombre} ({servicio})"):
                     msg_cobro = (
@@ -84,8 +88,9 @@ if password == CLAVE_MAESTRA:
                     link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_cobro.encode('utf-8'))}"
                     st.markdown(f"[📲 Enviar Mensaje de Cobro]({link_cobro})")
 
-            # --- LÓGICA DE ENTREGA DE CLAVES ---
+            # --- BLOQUE DE ENTREGA DE CLAVES ---
             with st.expander(f"🔑 ENTREGAR CLAVES A: {nombre} ({servicio})"):
+                # Lógica de conexiones según tu tabla
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
