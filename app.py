@@ -4,46 +4,46 @@ import pandas as pd
 from datetime import datetime, timedelta
 import urllib.parse
 
-# Configuración de la pestaña
+# Configuración del nombre en la pestaña del navegador
 st.set_page_config(page_title="Control Skarleth", layout="wide")
-
-# TÍTULO ACTUALIZADO
 st.title("🎬 Sistema de Control Streaming")
 
 # --- CONTRASEÑA ---
 CLAVE_MAESTRA = "Z2599393F" 
 
+# Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read()
 
-# Limpieza y unificación de columnas
-df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o').replace('status', 'estatus') for c in df.columns]
+# --- BOTÓN DE ACTUALIZACIÓN MANUAL ---
+if st.sidebar.button("🔄 Actualizar Datos Ahora"):
+    st.cache_data.clear()
+    st.rerun()
+
+df = conn.read()
+# Limpieza de nombres de columnas
+df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c in df.columns]
 
 password = st.sidebar.text_input("Contraseña", type="password")
 
 if password == CLAVE_MAESTRA:
-    # TASA INICIAL CONFIGURADA EN 660 (Tasa Binance)
-    tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
+    tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=40.0, step=0.1)
     
-    # 1. SECCIÓN DE INVENTARIO
+    # 1. INVENTARIO DISPONIBLE (Sustituye tu color morado)
     st.markdown("### 💜 Perfiles Disponibles (Inventario)")
     if 'nombre' in df.columns:
-        mask_nombre = df['nombre'].str.contains('DISPONIBLE|VACANTE|LIBRE', case=False, na=False)
-        mask_estatus = pd.Series([False] * len(df))
-        if 'estatus' in df.columns:
-            mask_estatus = df['estatus'].str.contains('libre', case=False, na=False)
-            
-        disponibles = df[mask_nombre | mask_estatus]
-        
+        disponibles = df[
+            (df['nombre'].str.contains('DISPONIBLE|VACANTE|LIBRE', case=False, na=False)) | 
+            (df.get('estatus', '').str.contains('libre', case=False, na=False))
+        ]
         if not disponibles.empty:
             for idx, row in disponibles.iterrows():
-                st.success(f"✨ **{row.get('servicio', 'Servicio')}** disponible en cuenta: `{row.get('id_cuenta', 'S/D')}`")
+                st.success(f"✨ **{row['servicio']}** disponible en cuenta: `{row['id_cuenta']}`")
         else:
             st.write("No tienes cupos libres por ahora.")
 
     st.divider()
 
-    # 2. GESTIÓN DE CLIENTES
+    # 2. GESTIÓN DE COBROS Y ENTREGAS
     st.subheader("📅 Gestión de Clientes")
     ahora = datetime.now()
 
@@ -52,25 +52,24 @@ if password == CLAVE_MAESTRA:
         df = df.sort_values(by='vencimiento')
 
         for index, row in df.iterrows():
-            nombre = str(row.get('nombre', ''))
-            if any(x in nombre.lower() for x in ['disponible', 'vacante', 'libre']): continue
+            nombre = row.get('nombre', 'Cliente')
+            if str(nombre).lower() in ['disponible', 'vacante', 'libre']: continue
             
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
             clave = row.get('clave', 'S/D')
-            precio = float(row.get('precio_usd', 0) if row.get('precio_usd') else 0)
+            precio = float(row.get('precio_usd', 0))
             vence_dt = row['vencimiento']
             
             if pd.isna(vence_dt): continue
             
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
-            # El cálculo ahora usará los 660 por defecto
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
             estatus = str(row.get('estatus', '')).lower()
             color = "🔴" if vence_dt < ahora else "🟡"
             
-            # --- COBRO ---
+            # --- BLOQUE DE COBRO ---
             if estatus != 'pagado' and vence_dt <= ahora + timedelta(days=3):
                 with st.expander(f"{color} COBRAR A: {nombre} ({servicio})"):
                     msg_cobro = (
@@ -91,7 +90,7 @@ if password == CLAVE_MAESTRA:
                     link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_cobro.encode('utf-8'))}"
                     st.markdown(f"[📲 Enviar Mensaje de Cobro]({link_cobro})")
 
-            # --- ENTREGA DE CLAVES ---
+            # --- BLOQUE DE ENTREGA DE CLAVES ---
             with st.expander(f"🔑 ENTREGAR CLAVES A: {nombre} ({servicio})"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
@@ -106,10 +105,15 @@ if password == CLAVE_MAESTRA:
                     f"⚡️Conexiones: {conexiones}\n"
                     f"📆 Próxima renovación: {fecha_vence_str}\n\n"
                 )
-                if "jumangistv" in servicio.lower():
-                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082n"
                 
-                msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
+                if "jumangistv" in servicio.lower():
+                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082\n"
+                
+                msg_entrega += (
+                    f"👤 Usuario: {id_u}\n"
+                    f"🔐 Contraseña: {clave}\n"
+                )
+                
                 if "flujotv" in servicio.lower():
                     msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
                 
