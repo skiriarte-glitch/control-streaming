@@ -11,7 +11,7 @@ st.set_page_config(page_title="Control Skarleth", layout="wide")
 st.title("🎬 Sistema de Control Streaming")
 
 # --- CONTRASEÑA ---
-CLAVE_MAESTRA = "Skarleth2026" 
+CLAVE_MAESTRA = "Z2599393F" 
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 df = conn.read()
