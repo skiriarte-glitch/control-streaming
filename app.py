@@ -9,7 +9,7 @@ st.set_page_config(page_title="Control Streaming", layout="wide")
 st.title("🎬 Sistema de Control Streaming")
 
 # --- CONTRASEÑA ---
-CLAVE_MAESTRA = "1234" 
+CLAVE_MAESTRA = "Prueba123" 
 
 # Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
