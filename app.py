@@ -26,11 +26,18 @@ df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c
 password = st.sidebar.text_input("Contraseña", type="password")
 
 if password == CLAVE_MAESTRA:
-    # 1. CORREGIDO: Tasa del día arranca de una vez en 660.0
     tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
-    
-    # 2. CORREGIDO: Muestra tus perfiles disponibles leyendo la columna 'estatus' o 'nombre'
-    st.markdown("### 💜 Perfiles Disponibles")
+    ahora = datetime.now()
+
+    # Preparar el DataFrame convirtiendo fechas y limpiando textos
+    if 'vencimiento' in df.columns:
+        df['vencimiento'] = pd.to_datetime(df['vencimiento'], errors='coerce')
+        df = df.sort_values(by='vencimiento')
+
+    # =========================================================================
+    # GRUPO 1: 💜 PERFILES DISPONIBLES (INVENTARIO)
+    # =========================================================================
+    st.markdown("### 💜 Perfiles Disponibles (Inventario)")
     if 'estatus' in df.columns:
         condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante', na=False)) | \
                           (df['nombre'].str.lower().str.contains('disponible|libre|vacante', na=False))
@@ -44,19 +51,50 @@ if password == CLAVE_MAESTRA:
 
     st.divider()
 
-    # GESTIÓN DE COBROS Y ENTREGAS
-    st.subheader("📅 Gestión de Clientes")
-    ahora = datetime.now()
+    # Clasificación de clientes (excluyendo los libres de arriba)
+    clientes_activos = df[~condicion_libre].copy() if 'estatus' in df.columns else df.copy()
 
-    if 'vencimiento' in df.columns:
-        df['vencimiento'] = pd.to_datetime(df['vencimiento'], errors='coerce')
-        df = df.sort_values(by='vencimiento')
+    # Listas para separar los dos nuevos grupos de clientes
+    lista_urgentes = []
+    lista_funcionando = []
 
-        for index, row in df.iterrows():
-            # Evitamos el error 'nan' si la celda de nombre está vacía
+    for index, row in clientes_activos.iterrows():
+        raw_nombre = row.get('nombre', '')
+        nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+        
+        estatus = str(row.get('estatus', '')).strip().lower()
+        servicio = str(row.get('servicio', 'Servicio')).strip()
+        vence_dt = row.get('vencimiento', pd.NaT)
+        
+        if pd.isna(vence_dt): 
+            continue
+
+        # Clasificación por reglas de negocio
+        es_urgente = False
+        
+        # Regla 3: Si dice "pendiente", va directo a urgentes (Rojo 🔴)
+        if estatus == 'pendiente':
+            es_urgente = True
+        # Regla 1: Si vence desde hoy hasta 2 días más (o si ya venció y no está pagado)
+        elif estatus != 'pagado':
+            if vence_dt <= ahora + timedelta(days=2):
+                es_urgente = True
+
+        # Agrupar en la lista correspondiente
+        if es_urgente:
+            lista_urgentes.append(row)
+        else:
+            lista_funcionando.append(row)
+
+    # =========================================================================
+    # GRUPO 2: ⏰ PRÓXIMOS A VENCER / COBROS PENDIENTES
+    # =========================================================================
+    st.markdown("### ⏰ Próximos a Vencer y Deudores (Enviar Cobro)")
+    
+    if len(lista_urgentes) > 0:
+        for row in lista_urgentes:
             raw_nombre = row.get('nombre', '')
             nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
-            
             estatus = str(row.get('estatus', '')).strip().lower()
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
@@ -64,54 +102,61 @@ if password == CLAVE_MAESTRA:
             precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
             vence_dt = row['vencimiento']
             
-            # Si el perfil está libre, no se le cobra a nadie (Vitrina)
-            if estatus in ['libre', 'disponible'] or nombre.lower() in ['disponible', 'libre']: 
-                continue
-                
-            if pd.isna(vence_dt): 
-                continue
-            
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
-            color = "🔴" if vence_dt < ahora else "🟡"
             
-            # --- APLICACIÓN DE TUS REGLAS DE COBRO ---
-            mostrar_cobro = False
-            
-            # Regla 3 y 5: Si está 'pendiente' o en blanco/otros estados, y ya venció o vence en los próximos 3 días
-            if estatus != 'pagado':
-                if vence_dt <= ahora + timedelta(days=3):
-                    mostrar_cobro = True
-            
-            # Regla 4: Si dice 'pagado' pero la fecha es vieja, NO se cobra (espera por el grupo)
-            if estatus == 'pagado':
-                mostrar_cobro = False
+            # Asignación correcta de colores (Regla 3)
+            # Rojo si ya pasó la fecha o si explícitamente dice 'pendiente'
+            if vence_dt < ahora or estatus == 'pendiente':
+                color = "🔴"
+                tipo_aviso = "DEUDA / VENCIDO"
+            else:
+                color = "🟡"
+                tipo_aviso = "PRÓXIMO A VENCER"
 
-            # --- BLOQUE DE COBRO ---
-            if mostrar_cobro:
-                with st.expander(f"{color} COBRAR A: {nombre} ({servicio})"):
-                    msg_cobro = (
-                        f"Hola “{nombre}” 🫂\n\n"
-                        f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
-                        f"Si deseas renovar, te dejo los datos de pago.\n\n"
-                        f"*Pago móvil* 💳\n"
-                        f"Banco: Bancamiga\n"
-                        f"Documento: 13024234\n"
-                        f"Teléfono: 04246379018\n"
-                        f"Concepto: *PAGO*\n"
-                        f"Monto: *{monto_bs} Bs.*\n\n"
-                        f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
-                        f"Quedo atenta ante cualquier duda ✨"
-                    )
-                    num = str(row.get('telefono', '58')).split('.')[0].strip()
-                    if not num.startswith("58") and num != "": num = f"58{num}"
-                    link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_cobro.encode('utf-8'))}"
-                    st.markdown(f"[📲 Enviar Mensaje de Cobro]({link_cobro})")
+            with st.expander(f"{color} {tipo_aviso}: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
+                msg_cobro = (
+                    f"Hola “{nombre}” 🫂\n\n"
+                    f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
+                    f"Si deseas renovar, te dejo los datos de pago.\n\n"
+                    f"*Pago móvil* 💳\n"
+                    f"Banco: Bancamiga\n"
+                    f"Documento: 13024234\n"
+                    f"Teléfono: 04246379018\n"
+                    f"Concepto: *PAGO*\n"
+                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
+                    f"Quedo atenta ante cualquier duda ✨"
+                )
+                num = str(row.get('telefono', '58')).split('.')[0].strip()
+                if not num.startswith("58") and num != "": num = f"58{num}"
+                link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_cobro.encode('utf-8'))}"
+                st.markdown(f"[📲 Enviar Mensaje de Cobro]({link_cobro})")
+    else:
+        st.write("✅ Al día. No hay cobros pendientes para los próximos 2 días.")
 
-            # --- BLOQUE DE ENTREGA DE CLAVES ---
-            # Responde al punto 1: Siempre disponible para enviar datos apenas llenes el nombre.
-            # Responde al punto 2: Sigue visible para los "pagados" que esperan por grupo.
-            with st.expander(f"🔑 ENTREGAR CLAVES A: {nombre} ({servicio})"):
+    st.divider()
+
+    # =========================================================================
+    # GRUPO 3: 🟢 MEMBRESÍAS FUNCIONANDO (AL DÍA)
+    # =========================================================================
+    st.markdown("### 🟢 Membresías Funcionando (Al Día)")
+    
+    if len(lista_funcionando) > 0:
+        for row in lista_funcionando:
+            raw_nombre = row.get('nombre', '')
+            nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+            servicio = str(row.get('servicio', 'Servicio')).strip()
+            id_u = row.get('id_cuenta', 'S/D')
+            clave = row.get('clave', 'S/D')
+            precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
+            vence_dt = row['vencimiento']
+            fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+            
+            # Nota: Los "Pagados" esperando grupo caen aquí de forma limpia
+            badge_estado = " (Esperando Grupo)" if str(row.get('estatus', '')).lower() == 'pagado' else ""
+
+            with st.expander(f"🟢 ACTIVO{badge_estado}: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -140,6 +185,8 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 link_entrega = f"https://wa.me/{num}?text={urllib.parse.quote(msg_entrega.encode('utf-8'))}"
                 st.markdown(f"[🚀 Enviar Datos de Acceso]({link_entrega})")
+    else:
+        st.write("No hay membresías activas registradas.")
 
     st.divider()
     st.subheader("👥 Base de Datos General")
