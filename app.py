@@ -26,24 +26,25 @@ df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c
 password = st.sidebar.text_input("Contraseña", type="password")
 
 if password == CLAVE_MAESTRA:
-    tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=40.0, step=0.1)
+    # 1. CORREGIDO: Tasa del día arranca de una vez en 660.0
+    tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
     
-    # 1. INVENTARIO DISPONIBLE (Sustituye tu color morado)
+    # 2. CORREGIDO: Muestra tus perfiles disponibles leyendo la columna 'estatus' o 'nombre'
     st.markdown("### 💜 Perfiles Disponibles")
-    if 'nombre' in df.columns:
-        disponibles = df[
-            (df['nombre'].str.contains('DISPONIBLE|VACANTE|LIBRE', case=False, na=False)) | 
-            (df.get('estatus', '').str.contains('libre', case=False, na=False))
-        ]
+    if 'estatus' in df.columns:
+        condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante', na=False)) | \
+                          (df['nombre'].str.lower().str.contains('disponible|libre|vacante', na=False))
+        disponibles = df[condicion_libre]
+        
         if not disponibles.empty:
             for idx, row in disponibles.iterrows():
-                st.success(f"✨ **{row['servicio']}** disponible en cuenta: `{row['id_cuenta']}`")
+                st.success(f"✨ **{row.get('servicio', 'Servicio')}** disponible en cuenta: `{row.get('id_cuenta', 'S/D')}`")
         else:
             st.write("No tienes cupos libres por ahora.")
 
     st.divider()
 
-    # 2. GESTIÓN DE COBROS Y ENTREGAS
+    # GESTIÓN DE COBROS Y ENTREGAS
     st.subheader("📅 Gestión de Clientes")
     ahora = datetime.now()
 
@@ -52,25 +53,42 @@ if password == CLAVE_MAESTRA:
         df = df.sort_values(by='vencimiento')
 
         for index, row in df.iterrows():
-            nombre = row.get('nombre', 'Cliente')
-            if str(nombre).lower() in ['disponible', 'vacante', 'libre']: continue
+            # Evitamos el error 'nan' si la celda de nombre está vacía
+            raw_nombre = row.get('nombre', '')
+            nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
             
+            estatus = str(row.get('estatus', '')).strip().lower()
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
             clave = row.get('clave', 'S/D')
-            precio = float(row.get('precio_usd', 0))
+            precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
             vence_dt = row['vencimiento']
             
-            if pd.isna(vence_dt): continue
+            # Si el perfil está libre, no se le cobra a nadie (Vitrina)
+            if estatus in ['libre', 'disponible'] or nombre.lower() in ['disponible', 'libre']: 
+                continue
+                
+            if pd.isna(vence_dt): 
+                continue
             
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
-            
-            estatus = str(row.get('estatus', '')).lower()
             color = "🔴" if vence_dt < ahora else "🟡"
             
+            # --- APLICACIÓN DE TUS REGLAS DE COBRO ---
+            mostrar_cobro = False
+            
+            # Regla 3 y 5: Si está 'pendiente' o en blanco/otros estados, y ya venció o vence en los próximos 3 días
+            if estatus != 'pagado':
+                if vence_dt <= ahora + timedelta(days=3):
+                    mostrar_cobro = True
+            
+            # Regla 4: Si dice 'pagado' pero la fecha es vieja, NO se cobra (espera por el grupo)
+            if estatus == 'pagado':
+                mostrar_cobro = False
+
             # --- BLOQUE DE COBRO ---
-            if estatus != 'pagado' and vence_dt <= ahora + timedelta(days=3):
+            if mostrar_cobro:
                 with st.expander(f"{color} COBRAR A: {nombre} ({servicio})"):
                     msg_cobro = (
                         f"Hola “{nombre}” 🫂\n\n"
@@ -86,11 +104,13 @@ if password == CLAVE_MAESTRA:
                         f"Quedo atenta ante cualquier duda ✨"
                     )
                     num = str(row.get('telefono', '58')).split('.')[0].strip()
-                    if not num.startswith("58"): num = f"58{num}"
+                    if not num.startswith("58") and num != "": num = f"58{num}"
                     link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_cobro.encode('utf-8'))}"
                     st.markdown(f"[📲 Enviar Mensaje de Cobro]({link_cobro})")
 
             # --- BLOQUE DE ENTREGA DE CLAVES ---
+            # Responde al punto 1: Siempre disponible para enviar datos apenas llenes el nombre.
+            # Responde al punto 2: Sigue visible para los "pagados" que esperan por grupo.
             with st.expander(f"🔑 ENTREGAR CLAVES A: {nombre} ({servicio})"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
@@ -109,10 +129,7 @@ if password == CLAVE_MAESTRA:
                 if "jumangistv" in servicio.lower():
                     msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082\n"
                 
-                msg_entrega += (
-                    f"👤 Usuario: {id_u}\n"
-                    f"🔐 Contraseña: {clave}\n"
-                )
+                msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
                 
                 if "flujotv" in servicio.lower():
                     msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
@@ -120,13 +137,12 @@ if password == CLAVE_MAESTRA:
                 msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
                 
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58"): num = f"58{num}"
+                if not num.startswith("58") and num != "": num = f"58{num}"
                 link_entrega = f"https://wa.me/{num}?text={urllib.parse.quote(msg_entrega.encode('utf-8'))}"
                 st.markdown(f"[🚀 Enviar Datos de Acceso]({link_entrega})")
 
     st.divider()
     st.subheader("👥 Base de Datos General")
     st.dataframe(df)
-
 else:
     st.info("Introduce la contraseña para gestionar el sistema.")
