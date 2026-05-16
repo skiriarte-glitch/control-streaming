@@ -35,9 +35,10 @@ if password == CLAVE_MAESTRA:
     # 2. LÍMITE MÁXIMO DE COBRO (Hoy + 2 días más)
     fecha_limite_cobro = fecha_hoy + timedelta(days=2)
 
-    # Preparar el DataFrame convirtiendo fechas
+    # Preparar el DataFrame convirtiendo fechas con formato mixto (ideal para 17/5/2026)
     if 'vencimiento' in df.columns:
-        df['vencimiento'] = pd.to_datetime(df['vencimiento'], errors='coerce')
+        # CORRECCIÓN DE ORO: format='mixed' y dayfirst=True para que entienda días y meses de 1 solo dígito
+        df['vencimiento'] = pd.to_datetime(df['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
         df = df.sort_values(by='vencimiento')
 
     # =========================================================================
@@ -75,7 +76,7 @@ if password == CLAVE_MAESTRA:
         # Extraer solo Año-Mes-Día para comparar de forma limpia
         fecha_vence = datetime(vence_dt.year, vence_dt.month, vence_dt.day)
 
-        # === NUEVA DISTRIBUCIÓN DE GRUPOS ESTRICTA ===
+        # === DISTRIBUCIÓN DE GRUPOS ESTRICTA ===
         
         # Grupo 2: Pagos Pendientes (ÚNICAMENTE si escribiste manualmente 'pendiente')
         if estatus == 'pendiente':
@@ -85,7 +86,7 @@ if password == CLAVE_MAESTRA:
         elif estatus != 'pagado' and (fecha_hoy <= fecha_vence <= fecha_limite_cobro):
             lista_proximos_vencer.append(row)
             
-        # Grupo 4: Activos (Fechas ya pasadas que corresponden al mes renovado, o fechas del futuro lejano)
+        # Grupo 4: Activos (Membresías lejanas o renovadas con fecha del mes que viene)
         else:
             lista_activos.append(row)
 
