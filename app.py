@@ -4,18 +4,23 @@ import pandas as pd
 from datetime import datetime, timedelta
 import urllib.parse
 
+# Configuración del nombre en la pestaña del navegador
 st.set_page_config(page_title="Control Streaming", layout="wide")
 st.title("🎬 Sistema de Control Streaming")
 
+# --- CONTRASEÑA ---
 CLAVE_MAESTRA = "Prueba123" 
 
+# Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
 
+# --- BOTÓN DE ACTUALIZACIÓN MANUAL ---
 if st.sidebar.button("🔄 Actualizar Datos Ahora"):
     st.cache_data.clear()
     st.rerun()
 
 df = conn.read()
+# Limpieza de nombres de columnas
 df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c in df.columns]
 
 password = st.sidebar.text_input("Contraseña", type="password")
@@ -27,6 +32,7 @@ if password == CLAVE_MAESTRA:
     fecha_hoy = datetime(ahora.year, ahora.month, ahora.day)
     fecha_limite_cobro = fecha_hoy + timedelta(days=2)
 
+    # Preparar el DataFrame convirtiendo fechas con formato mixto
     if 'vencimiento' in df.columns:
         df['vencimiento'] = pd.to_datetime(df['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
         df = df.sort_values(by='vencimiento')
@@ -47,6 +53,7 @@ if password == CLAVE_MAESTRA:
         else:
             st.write("No tienes cupos libres por ahora.")
 
+    # Listas para organizar los siguientes grupos
     clientes_activos = df[~condicion_libre].copy()
     lista_prepagados = []
     lista_pagos_pendientes = []
@@ -73,11 +80,11 @@ if password == CLAVE_MAESTRA:
             meses_adelanto = 0
 
         # === DISTRIBUCIÓN DE GRUPOS ESTRICTA ===
-        # 1. Si tiene meses adelantados y ya le toca renovar (No va a morosos)
-        if meses_adelanto > 0 and fecha_vence <= fecha_limite_cobro:
+        # 1. Si tiene meses adelantados, SIEMPRE va a prepagados (sin importar la fecha)
+        if meses_adelanto > 0:
             lista_prepagados.append(row)
             
-        # 2. Si es deudor manual o si su fecha ya pasó y NO es prepagado ni está pagado
+        # 2. Si es deudor manual o si su fecha ya pasó y NO está pagado
         elif estatus == 'pendiente' or (fecha_vence < fecha_hoy and estatus != 'pagado'):
             lista_pagos_pendientes.append(row)
             
@@ -90,12 +97,12 @@ if password == CLAVE_MAESTRA:
             lista_activos.append(row)
 
     # =========================================================================
-    # 2. 🔵 PREPAGADOS POR ACTUALIZAR (NUEVO)
+    # 2. 🔵 PREPAGADOS POR ACTUALIZAR (DISEÑO SOMBREADO)
     # =========================================================================
     if len(lista_prepagados) > 0:
         st.divider()
         st.markdown("### 🔵 Prepagados por Actualizar")
-        st.write("Clientes que ya pagaron por adelantado. Pásales sus claves nuevas, cambia su fecha y bájales 1 mes de adelanto en la tabla.")
+        st.write("Clientes que pagaron por adelantado. Pásales sus claves nuevas, cambia su fecha y bájales 1 mes de adelanto en la tabla cuando corresponda.")
         
         for row in lista_prepagados:
             raw_nombre = row.get('nombre', '')
@@ -108,42 +115,44 @@ if password == CLAVE_MAESTRA:
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             meses_restantes = int(float(row.get('meses_adelanto', 0)))
 
-            with st.expander(f"🔵 PREPAGADO ({meses_restantes} meses a favor): {nombre} ({servicio})"):
-                conexiones = "1"
-                if "flujotv" in servicio.lower():
-                    if precio == 6: conexiones = "2"
-                    elif precio >= 9: conexiones = "3"
-                elif "jumangistv" in servicio.lower():
-                    conexiones = "3"
+            conexiones = "1"
+            if "flujotv" in servicio.lower():
+                if precio == 6: conexiones = "2"
+                elif precio >= 9: conexiones = "3"
+            elif "jumangistv" in servicio.lower():
+                conexiones = "3"
 
-                msg_prepagado = (
-                    f"Hola “{nombre}” 🫂%0A%0A"
-                    f"Tu mes ha sido renovado exitosamente como parte de tu pago adelantado. ✨%0A"
-                    f"Aquí tienes tus datos de acceso para que sigas disfrutando de {servicio}.%0A%0A"
-                    f"⚡️Conexiones: {conexiones}%0A"
-                    f"📆 Próximo corte: {fecha_vence_str}%0A%0A"
-                )
-                
-                if "jumangistv" in servicio.lower():
-                    msg_prepagado += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
-                
-                msg_prepagado += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
-                
-                if "flujotv" in servicio.lower():
-                    msg_prepagado += f"🚯 PIN contenido adulto: 1234%0A"
-                
-                msg_prepagado += f"%0A¡Disfruta de tus contenidos favoritos! 📩"
-                
-                num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58") and num != "": num = f"58{num}"
-                
-                texto_url = urllib.parse.quote(msg_prepagado)
-                link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
-                
-                st.markdown(f'<a href="{link_prepagado}" target="_self" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
+            msg_prepagado = (
+                f"Hola “{nombre}” 🫂%0A%0A"
+                f"Tu mes ha sido renovado exitosamente como parte de tu pago adelantado. ✨%0A"
+                f"Aquí tienes tus datos de acceso para que sigas disfrutando de {servicio}.%0A%0A"
+                f"⚡️Conexiones: {conexiones}%0A"
+                f"📆 Próximo corte: {fecha_vence_str}%0A%0A"
+            )
+            
+            if "jumangistv" in servicio.lower():
+                msg_prepagado += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
+            
+            msg_prepagado += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
+            
+            if "flujotv" in servicio.lower():
+                msg_prepagado += f"🚯 PIN contenido adulto: 1234%0A"
+            
+            msg_prepagado += f"%0A¡Disfruta de tus contenidos favoritos! 📩"
+            
+            num = str(row.get('telefono', '58')).split('.')[0].strip()
+            if not num.startswith("58") and num != "": num = f"58{num}"
+            
+            texto_url = urllib.parse.quote(msg_prepagado)
+            link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+            
+            # Bloque visual sombreado azul
+            st.info(f"🔵 **PREPAGADO ({meses_restantes} meses a favor):** {nombre} ({servicio}) - Vence: {fecha_vence_str}")
+            # CORREGIDO: cambiado target a "whatsapp" para reutilizar pestaña activa
+            st.markdown(f'<div style="margin-top: -10px; margin-bottom: 20px;"><a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a></div>', unsafe_allow_html=True)
 
     # =========================================================================
-    # 3. 🔍 PAGOS PENDIENTES
+    # 3. 🔍 PAGOS PENDIENTES (DISEÑO SOMBREADO)
     # =========================================================================
     st.divider()
     st.markdown("### 🔍 Pagos pendientes")
@@ -158,27 +167,29 @@ if password == CLAVE_MAESTRA:
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
-            with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
-                msg_deudor = (
-                    f"Hola “{nombre}” 🫂%0A"
-                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.%0A%0A"
-                    f"Te dejo por aquí los datos para que puedas ponerte al día.%0A"
-                    f"Pago móvil 💳%0A"
-                    f"Banco: Bancamiga%0A"
-                    f"Documento: 13024234%0A"
-                    f"Teléfono: 04246379018%0A"
-                    f"Concepto: *PAGO*%0A"
-                    f"Monto: *{monto_bs} Bs.*%0A%0A"
-                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
-                    f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
-                )
-                num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58") and num != "": num = f"58{num}"
-                
-                texto_url = urllib.parse.quote(msg_deudor)
-                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
-                
-                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
+            msg_deudor = (
+                f"Hola “{nombre}” 🫂%0A"
+                f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.%0A%0A"
+                f"Te dejo por aquí los datos para que puedas ponerte al día.%0A"
+                f"Pago móvil 💳%0A"
+                f"Banco: Bancamiga%0A"
+                f"Documento: 13024234%0A"
+                f"Teléfono: 04246379018%0A"
+                f"Concepto: *PAGO*%0A"
+                f"Monto: *{monto_bs} Bs.*%0A%0A"
+                f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
+                f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
+            )
+            num = str(row.get('telefono', '58')).split('.')[0].strip()
+            if not num.startswith("58") and num != "": num = f"58{num}"
+            
+            texto_url = urllib.parse.quote(msg_deudor)
+            link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+            
+            # Bloque visual sombreado rojo
+            st.error(f"🔴 **SERVICIO RENOVADO / DEBE PAGO:** {nombre} ({servicio}) - Vence: {fecha_vence_str}")
+            # CORREGIDO: cambiado target a "whatsapp"
+            st.markdown(f'<div style="margin-top: -10px; margin-bottom: 20px;"><a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a></div>', unsafe_allow_html=True)
     else:
         st.write("✅ Todo al día. Ningún cliente moroso.")
 
@@ -200,16 +211,16 @@ if password == CLAVE_MAESTRA:
             
             with st.expander(f"🟡 AVISAR RENOVAR: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_preventivo = (
-                    f"Hola “{nombre}” 🫂%0A%0A"
-                    f"Ya está disponible la renovación de tu suscripción de {servicio}.%0A%0A"
-                    f"Si deseas renovar, te dejo los datos de pago.%0A%0A"
-                    f"Pago móvil 💳%0A"
-                    f"Banco: Bancamiga%0A"
-                    f"Documento: 13024234%0A"
-                    f"Teléfono: 04246379018%0A"
-                    f"Concepto: *PAGO*%0A"
-                    f"Monto: *{monto_bs} Bs.*%0A%0A"
-                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
+                    f"Hola “{nombre}” 🫂\n\n"
+                    f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
+                    f"Si deseas renovar, te dejo los datos de pago.\n\n"
+                    f"Pago móvil 💳\n"
+                    f"Banco: Bancamiga\n"
+                    f"Documento: 13024234\n"
+                    f"Teléfono: 04246379018\n"
+                    f"Concepto: *PAGO*\n"
+                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
@@ -218,7 +229,8 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_preventivo)
                 link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
+                # CORREGIDO: cambiado target a "whatsapp"
+                st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay vencimientos para hoy o las próximas 48 horas.")
 
@@ -251,20 +263,20 @@ if password == CLAVE_MAESTRA:
 
                 msg_entrega = (
                     f"✨ Aquí están tus datos personales de acceso. No los compartas con nadie. "
-                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.%0A%0A"
-                    f"⚡️Conexiones: {conexiones}%0A"
-                    f"📆 Próxima renovación: {fecha_vence_str}%0A%0A"
+                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.\n\n"
+                    f"⚡️Conexiones: {conexiones}\n"
+                    f"📆 Próxima renovación: {fecha_vence_str}\n\n"
                 )
                 
                 if "jumangistv" in servicio.lower():
-                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
+                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082\n"
                 
-                msg_entrega += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
+                msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
                 
                 if "flujotv" in servicio.lower():
-                    msg_entrega += f"🚯 PIN contenido adulto: 1234%0A"
+                    msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
                 
-                msg_entrega += f"%0A¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
+                msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
                 
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
@@ -272,16 +284,17 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_entrega)
                 link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_entrega}" target="_self" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
+                # CORREGIDO: cambiado target a "whatsapp"
+                st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
     else:
-        st.write("No hay membresías activas a largo plazo registradas.")
+        st.write("No hay membresías activas registradas.")
 
     # =========================================================================
     # 6. 📝 BASE DE DATOS EDITABLE
     # =========================================================================
     st.divider()
     st.subheader("📝 Base de Datos Editable")
-    st.write("Agrega la columna **`Meses_Adelanto`** a tu Excel. Si alguien paga 3 meses, ponle un 2.")
+    st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente.")
     
     df_editado = st.data_editor(df, num_rows="dynamic", use_container_width=True)
     
