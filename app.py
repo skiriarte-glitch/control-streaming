@@ -6,7 +6,7 @@ import urllib.parse
 
 # Configuración del nombre en la pestaña del navegador
 st.set_page_config(page_title="Control Streaming", layout="wide")
-st.title("🎬 Sistema de Control Streaming")
+st.title("🎬 Sistema Control Streaming")
 
 # --- CONTRASEÑA ---
 CLAVE_MAESTRA = "Prueba123" 
