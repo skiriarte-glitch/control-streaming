@@ -49,7 +49,7 @@ if password == CLAVE_MAESTRA:
         
         if not disponibles.empty:
             for idx, row in disponibles.iterrows():
-                st.success(f"✨ **{row.get('servicio', 'Servicio')}** disponible en cuenta: `{row.get('id_cuenta', 'S/D')}`")
+                st.success(f"🟣 **{row.get('servicio', 'Servicio')}** disponible en cuenta: `{row.get('id_cuenta', 'S/D')}`")
         else:
             st.write("No tienes cupos libres por ahora.")
 
