@@ -90,7 +90,7 @@ if password == CLAVE_MAESTRA:
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
             with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
-                # Formateo ultra-seguro para navegadores de escritorio (Mac) usando %0A en lugar de saltos de línea
+                # Texto codificado para navegadores de escritorio (Mac) con códigos de escape directos
                 msg_deudor = (
                     f"Hola “{nombre}” 🫂%0A"
                     f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.%0A%0A"
@@ -107,9 +107,9 @@ if password == CLAVE_MAESTRA:
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
-                # Reemplazamos espacios por codificación limpia
                 texto_final = msg_deudor.replace(" ", "%20")
-                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_final}"
+                # api.whatsapp.com detecta la sesión web existente o abre la app de Mac de forma limpia
+                link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_final}"
                 st.markdown(f"[📲 Enviar Recordatorio de Deuda]({link_cobro})")
     else:
         st.write("✅ Todo al día. Ningún cliente bajo el estatus 'Pendiente'.")
@@ -148,7 +148,7 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
                 texto_final = msg_preventivo.replace(" ", "%20")
-                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_final}"
+                link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_final}"
                 st.markdown(f"[📲 Enviar Mensaje de Cobro Standard]({link_cobro})")
     else:
         st.write("No hay vencimientos en el rango de aviso.")
@@ -201,7 +201,7 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
                 texto_final = msg_entrega.replace(" ", "%20")
-                link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_final}"
+                link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_final}"
                 st.markdown(f"[🚀 Enviar Datos de Acceso]({link_entrega})")
     else:
         st.write("No hay membresías activas registradas.")
