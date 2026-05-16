@@ -61,8 +61,10 @@ if password == CLAVE_MAESTRA:
     lista_activos = []
 
     for index, row in clientes_activos.iterrows():
+        # Extracción del nombre completo y del primer nombre
         raw_nombre = row.get('nombre', '')
-        nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+        nombre_completo = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+        primer_nombre = nombre_completo.split()[0] if nombre_completo != "Cliente" else "Cliente"
         
         estatus = str(row.get('estatus', '')).strip().lower()
         vence_dt = row.get('vencimiento', pd.NaT)
@@ -80,33 +82,28 @@ if password == CLAVE_MAESTRA:
             meses_adelanto = 0
 
         # === DISTRIBUCIÓN DE GRUPOS ESTRICTA ===
-        # 1. Si tiene meses adelantados, SIEMPRE va a prepagados (sin importar la fecha)
         if meses_adelanto > 0:
-            lista_prepagados.append(row)
+            lista_prepagados.append((row, nombre_completo, primer_nombre))
             
-        # 2. Si es deudor manual o si su fecha ya pasó y NO está pagado
         elif estatus == 'pendiente' or (fecha_vence < fecha_hoy and estatus != 'pagado'):
-            lista_pagos_pendientes.append(row)
+            lista_pagos_pendientes.append((row, nombre_completo, primer_nombre))
             
-        # 3. Si vence en los próximos 2 días (y no está pagado)
         elif estatus != 'pagado' and (fecha_hoy <= fecha_vence <= fecha_limite_cobro):
-            lista_proximos_vencer.append(row)
+            lista_proximos_vencer.append((row, nombre_completo, primer_nombre))
             
-        # 4. Activos normales o Pagados esperando grupo
         else:
-            lista_activos.append(row)
+            lista_activos.append((row, nombre_completo, primer_nombre))
 
     # =========================================================================
-    # 2. 🔵 PREPAGADOS POR ACTUALIZAR (DISEÑO SOMBREADO)
+    # 2. 🔵 PREPAGADOS POR ACTUALIZAR
     # =========================================================================
     if len(lista_prepagados) > 0:
         st.divider()
         st.markdown("### 🔵 Prepagados por Actualizar")
         st.write("Clientes que pagaron por adelantado. Pásales sus claves nuevas, cambia su fecha y bájales 1 mes de adelanto en la tabla cuando corresponda.")
         
-        for row in lista_prepagados:
-            raw_nombre = row.get('nombre', '')
-            nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+        for item in lista_prepagados:
+            row, nombre_completo, primer_nombre = item
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
             clave = row.get('clave', 'S/D')
@@ -115,81 +112,78 @@ if password == CLAVE_MAESTRA:
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             meses_restantes = int(float(row.get('meses_adelanto', 0)))
 
-            conexiones = "1"
-            if "flujotv" in servicio.lower():
-                if precio == 6: conexiones = "2"
-                elif precio >= 9: conexiones = "3"
-            elif "jumangistv" in servicio.lower():
-                conexiones = "3"
+            # USO DE EXPANDER PARA MANTENER EL BOTÓN OCULTO
+            with st.expander(f"🔵 PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
+                conexiones = "1"
+                if "flujotv" in servicio.lower():
+                    if precio == 6: conexiones = "2"
+                    elif precio >= 9: conexiones = "3"
+                elif "jumangistv" in servicio.lower():
+                    conexiones = "3"
 
-            msg_prepagado = (
-                f"Hola “{nombre}” 🫂%0A%0A"
-                f"Tu mes ha sido renovado exitosamente como parte de tu pago adelantado. ✨%0A"
-                f"Aquí tienes tus datos de acceso para que sigas disfrutando de {servicio}.%0A%0A"
-                f"⚡️Conexiones: {conexiones}%0A"
-                f"📆 Próximo corte: {fecha_vence_str}%0A%0A"
-            )
-            
-            if "jumangistv" in servicio.lower():
-                msg_prepagado += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
-            
-            msg_prepagado += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
-            
-            if "flujotv" in servicio.lower():
-                msg_prepagado += f"🚯 PIN contenido adulto: 1234%0A"
-            
-            msg_prepagado += f"%0A¡Disfruta de tus contenidos favoritos! 📩"
-            
-            num = str(row.get('telefono', '58')).split('.')[0].strip()
-            if not num.startswith("58") and num != "": num = f"58{num}"
-            
-            texto_url = urllib.parse.quote(msg_prepagado)
-            link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
-            
-            # Bloque visual sombreado azul
-            st.info(f"🔵 **PREPAGADO ({meses_restantes} meses a favor):** {nombre} ({servicio}) - Vence: {fecha_vence_str}")
-            # CORREGIDO: cambiado target a "whatsapp" para reutilizar pestaña activa
-            st.markdown(f'<div style="margin-top: -10px; margin-bottom: 20px;"><a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a></div>', unsafe_allow_html=True)
+                msg_prepagado = (
+                    f"Hola “{primer_nombre}” 🫂%0A%0A"
+                    f"Tu mes ha sido renovado exitosamente como parte de tu pago adelantado. ✨%0A"
+                    f"Aquí tienes tus datos de acceso para que sigas disfrutando de {servicio}.%0A%0A"
+                    f"⚡️Conexiones: {conexiones}%0A"
+                    f"📆 Próximo corte: {fecha_vence_str}%0A%0A"
+                )
+                
+                if "jumangistv" in servicio.lower():
+                    msg_prepagado += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
+                
+                msg_prepagado += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
+                
+                if "flujotv" in servicio.lower():
+                    msg_prepagado += f"🚯 PIN contenido adulto: 1234%0A"
+                
+                msg_prepagado += f"%0A¡Disfruta de tus contenidos favoritos! 📩"
+                
+                num = str(row.get('telefono', '58')).split('.')[0].strip()
+                if not num.startswith("58") and num != "": num = f"58{num}"
+                
+                texto_url = urllib.parse.quote(msg_prepagado)
+                link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                
+                st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
-    # 3. 🔍 PAGOS PENDIENTES (DISEÑO SOMBREADO)
+    # 3. 🔍 PAGOS PENDIENTES
     # =========================================================================
     st.divider()
     st.markdown("### 🔍 Pagos pendientes")
     
     if len(lista_pagos_pendientes) > 0:
-        for row in lista_pagos_pendientes:
-            raw_nombre = row.get('nombre', '')
-            nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+        for item in lista_pagos_pendientes:
+            row, nombre_completo, primer_nombre = item
             servicio = str(row.get('servicio', 'Servicio')).strip()
             precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
             vence_dt = row['vencimiento']
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
-            msg_deudor = (
-                f"Hola “{nombre}” 🫂%0A"
-                f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.%0A%0A"
-                f"Te dejo por aquí los datos para que puedas ponerte al día.%0A"
-                f"Pago móvil 💳%0A"
-                f"Banco: Bancamiga%0A"
-                f"Documento: 13024234%0A"
-                f"Teléfono: 04246379018%0A"
-                f"Concepto: *PAGO*%0A"
-                f"Monto: *{monto_bs} Bs.*%0A%0A"
-                f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
-                f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
-            )
-            num = str(row.get('telefono', '58')).split('.')[0].strip()
-            if not num.startswith("58") and num != "": num = f"58{num}"
-            
-            texto_url = urllib.parse.quote(msg_deudor)
-            link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
-            
-            # Bloque visual sombreado rojo
-            st.error(f"🔴 **SERVICIO RENOVADO / DEBE PAGO:** {nombre} ({servicio}) - Vence: {fecha_vence_str}")
-            # CORREGIDO: cambiado target a "whatsapp"
-            st.markdown(f'<div style="margin-top: -10px; margin-bottom: 20px;"><a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a></div>', unsafe_allow_html=True)
+            # USO DE EXPANDER PARA MANTENER EL BOTÓN OCULTO
+            with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
+                msg_deudor = (
+                    f"Hola “{primer_nombre}” 🫂%0A"
+                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.%0A%0A"
+                    f"Te dejo por aquí los datos para que puedas ponerte al día.%0A"
+                    f"Pago móvil 💳%0A"
+                    f"Banco: Bancamiga%0A"
+                    f"Documento: 13024234%0A"
+                    f"Teléfono: 04246379018%0A"
+                    f"Concepto: *PAGO*%0A"
+                    f"Monto: *{monto_bs} Bs.*%0A%0A"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
+                    f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
+                )
+                num = str(row.get('telefono', '58')).split('.')[0].strip()
+                if not num.startswith("58") and num != "": num = f"58{num}"
+                
+                texto_url = urllib.parse.quote(msg_deudor)
+                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                
+                st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
     else:
         st.write("✅ Todo al día. Ningún cliente moroso.")
 
@@ -200,27 +194,26 @@ if password == CLAVE_MAESTRA:
     st.markdown("### ⏰ Próximos a Vencer")
     
     if len(lista_proximos_vencer) > 0:
-        for row in lista_proximos_vencer:
-            raw_nombre = row.get('nombre', '')
-            nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+        for item in lista_proximos_vencer:
+            row, nombre_completo, primer_nombre = item
             servicio = str(row.get('servicio', 'Servicio')).strip()
             precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
             vence_dt = row['vencimiento']
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
-            with st.expander(f"🟡 AVISAR RENOVAR: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
+            with st.expander(f"🟡 AVISAR RENOVAR: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_preventivo = (
-                    f"Hola “{nombre}” 🫂\n\n"
-                    f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
-                    f"Si deseas renovar, te dejo los datos de pago.\n\n"
-                    f"Pago móvil 💳\n"
-                    f"Banco: Bancamiga\n"
-                    f"Documento: 13024234\n"
-                    f"Teléfono: 04246379018\n"
-                    f"Concepto: *PAGO*\n"
-                    f"Monto: *{monto_bs} Bs.*\n\n"
-                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
+                    f"Hola “{primer_nombre}” 🫂%0A%0A"
+                    f"Ya está disponible la renovación de tu suscripción de {servicio}.%0A%0A"
+                    f"Si deseas renovar, te dejo los datos de pago.%0A%0A"
+                    f"Pago móvil 💳%0A"
+                    f"Banco: Bancamiga%0A"
+                    f"Documento: 13024234%0A"
+                    f"Teléfono: 04246379018%0A"
+                    f"Concepto: *PAGO*%0A"
+                    f"Monto: *{monto_bs} Bs.*%0A%0A"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
@@ -229,7 +222,6 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_preventivo)
                 link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # CORREGIDO: cambiado target a "whatsapp"
                 st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay vencimientos para hoy o las próximas 48 horas.")
@@ -241,9 +233,8 @@ if password == CLAVE_MAESTRA:
     st.markdown("### 🟢 Activos")
     
     if len(lista_activos) > 0:
-        for row in lista_activos:
-            raw_nombre = row.get('nombre', '')
-            nombre = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
+        for item in lista_activos:
+            row, nombre_completo, primer_nombre = item
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
             clave = row.get('clave', 'S/D')
@@ -253,7 +244,7 @@ if password == CLAVE_MAESTRA:
             
             badge_estado = " (Esperando Grupo)" if str(row.get('estatus', '')).lower() == 'pagado' else ""
 
-            with st.expander(f"🟢 ACTIVO{badge_estado}: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
+            with st.expander(f"🟢 ACTIVO{badge_estado}: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -263,20 +254,20 @@ if password == CLAVE_MAESTRA:
 
                 msg_entrega = (
                     f"✨ Aquí están tus datos personales de acceso. No los compartas con nadie. "
-                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.\n\n"
-                    f"⚡️Conexiones: {conexiones}\n"
-                    f"📆 Próxima renovación: {fecha_vence_str}\n\n"
+                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.%0A%0A"
+                    f"⚡️Conexiones: {conexiones}%0A"
+                    f"📆 Próxima renovación: {fecha_vence_str}%0A%0A"
                 )
                 
                 if "jumangistv" in servicio.lower():
-                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082\n"
+                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
                 
-                msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
+                msg_entrega += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
                 
                 if "flujotv" in servicio.lower():
-                    msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
+                    msg_entrega += f"🚯 PIN contenido adulto: 1234%0A"
                 
-                msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
+                msg_entrega += f"%0A¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
                 
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
@@ -284,10 +275,9 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_entrega)
                 link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # CORREGIDO: cambiado target a "whatsapp"
                 st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
     else:
-        st.write("No hay membresías activas registradas.")
+        st.write("No hay membresías activas a largo plazo registradas.")
 
     # =========================================================================
     # 6. 📝 BASE DE DATOS EDITABLE
