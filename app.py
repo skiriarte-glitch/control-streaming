@@ -28,11 +28,11 @@ password = st.sidebar.text_input("Contraseña", type="password")
 if password == CLAVE_MAESTRA:
     tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
     
-    # 1. CONSEGUIR FECHA DE HOY LIMPIA (Sin horas, minutos ni segundos)
+    # 1. CONSEGUIR FECHA DE HOY LIMPIA (Sin horas)
     ahora = datetime.now()
     fecha_hoy = datetime(ahora.year, ahora.month, ahora.day)
     
-    # 2. LÍMITE MÁXIMO DE COBRO (Exactamente hoy + 2 días, a las 00:00:00)
+    # 2. LÍMITE MÁXIMO DE COBRO (Hoy + 2 días más)
     fecha_limite_cobro = fecha_hoy + timedelta(days=2)
 
     # Preparar el DataFrame convirtiendo fechas
@@ -72,20 +72,21 @@ if password == CLAVE_MAESTRA:
         if pd.isna(vence_dt): 
             continue
             
-        # 3. EXTRAER SOLO EL AÑO-MES-DÍA DEL CLIENTE (Elimina interferencia de horas)
+        # Extraer solo Año-Mes-Día para comparar de forma limpia
         fecha_vence = datetime(vence_dt.year, vence_dt.month, vence_dt.day)
 
-        # APLICACIÓN DE TUS REGLAS SIN INTERFERENCIAS:
-        if estatus == 'pendiente' or fecha_vence < fecha_hoy:
-            # Si el estatus manual es 'pendiente' o el día de vencimiento ya pasó (es menor a hoy)
+        # === NUEVA DISTRIBUCIÓN DE GRUPOS ESTRICTA ===
+        
+        # Grupo 2: Pagos Pendientes (ÚNICAMENTE si escribiste manualmente 'pendiente')
+        if estatus == 'pendiente':
             lista_pagos_pendientes.append(row)
             
-        elif fecha_hoy <= fecha_vence <= fecha_limite_cobro:
-            # Si vence HOY, MAÑANA o PASADO MAÑANA
+        # Grupo 3: Próximos a Vencer (Solo si está entre HOY y HOY + 2 DÍAS, y NO está pagado)
+        elif estatus != 'pagado' and (fecha_hoy <= fecha_vence <= fecha_limite_cobro):
             lista_proximos_vencer.append(row)
             
+        # Grupo 4: Activos (Fechas ya pasadas que corresponden al mes renovado, o fechas del futuro lejano)
         else:
-            # Si vence dentro de 3 días o más
             lista_activos.append(row)
 
     # =========================================================================
@@ -126,7 +127,7 @@ if password == CLAVE_MAESTRA:
                 
                 st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
     else:
-        st.write("✅ Todo al día. Ningún deudor ni vencido.")
+        st.write("✅ Todo al día. Ningún cliente bajo el estatus 'Pendiente'.")
 
     # =========================================================================
     # 3. ⏰ PRÓXIMOS A VENCER
@@ -154,7 +155,7 @@ if password == CLAVE_MAESTRA:
                     f"Documento: 13024234\n"
                     f"Teléfono: 04246379018\n"
                     f"Concepto: *PAGO*\n"
-                    f"Monto: *{monto_bs} Bs.*%0A%0A"
+                    f"Monto: *{monto_bs} Bs.*\n\n"
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
@@ -166,7 +167,7 @@ if password == CLAVE_MAESTRA:
                 
                 st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
     else:
-        st.write("No hay vencimientos en el rango de aviso (hoy o próximas 48 horas).")
+        st.write("No hay vencimientos para hoy o las próximas 48 horas.")
 
     # =========================================================================
     # 4. 🟢 ACTIVOS
@@ -220,7 +221,7 @@ if password == CLAVE_MAESTRA:
                 
                 st.markdown(f'<a href="{link_entrega}" target="_self" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
     else:
-        st.write("No hay membresías activas a largo plazo registradas.")
+        st.write("No hay membresías activas registradas.")
 
     st.divider()
     st.subheader("👥 Base de Datos General")
