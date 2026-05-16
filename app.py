@@ -66,21 +66,16 @@ if password == CLAVE_MAESTRA:
         if pd.isna(vence_dt): 
             continue
 
-        # NUEVA LÓGICA DE CLASIFICACIÓN PRECISA
-        # Grupo 2: Pagos Pendientes (ÚNICAMENTE si escribiste 'pendiente' en el Excel)
+        # LÓGICA DE CLASIFICACIÓN PRECISA
         if estatus == 'pendiente':
             lista_pagos_pendientes.append(row)
-            
-        # Grupo 3: Próximos a Vencer (Vence desde hoy hasta dentro de 2 días, o ya venció pero NO está marcado como deudor 'pendiente' ni como 'pagado')
         elif estatus != 'pagado' and vence_dt <= ahora + timedelta(days=2):
             lista_proximos_vencer.append(row)
-            
-        # Grupo 4: Activos (Membresías con bastante tiempo a favor, o los "Pagados" esperando grupo)
         else:
             lista_activos.append(row)
 
     # =========================================================================
-    # 2. 🔍 PAGOS PENDIENTES (SÓLO DEUDORES CONFIRMADOS)
+    # 2. 🔍 PAGOS PENDIENTES (MENSAJE NUEVO CORREGIDO)
     # =========================================================================
     st.divider()
     st.markdown("### 🔍 Pagos pendientes")
@@ -96,29 +91,31 @@ if password == CLAVE_MAESTRA:
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
             with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
-                # TEXTO AJUSTADO: Para quien ya disfrute de la renovación pero deba el dinero
+                # TEXTO AJUSTADO EXACTAMENTE A TU SOLICITUD
                 msg_deudor = (
-                    f"Hola “{nombre}” 🫂\n\n"
-                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos **pendiente el pago** de este mes.\n\n"
-                    f"Te dejo por aquí los datos para que puedas ponerte al día. ✨\n\n"
-                    f"*Pago móvil* 💳\n"
+                    f"Hola “{nombre}” 🫂\n"
+                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.\n\n"
+                    f"Te dejo por aquí los datos para que puedas ponerte al día.\n"
+                    f"Pago móvil 💳\n"
                     f"Banco: Bancamiga\n"
                     f"Documento: 13024234\n"
                     f"Teléfono: 04246379018\n"
                     f"Concepto: *PAGO*\n"
                     f"Monto: *{monto_bs} Bs.*\n\n"
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
-                    f"Quedo atenta ante cualquier duda. ¡Gracias!"
+                    f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
-                link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_deudor.encode('utf-8'))}"
+                
+                # CORRECCIÓN DE EMOJIS: Quitamos el .encode('utf-8') que rompía el link en web
+                link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_deudor)}"
                 st.markdown(f"[📲 Enviar Recordatorio de Deuda]({link_cobro})")
     else:
         st.write("✅ Todo al día. Ningún cliente bajo el estatus 'Pendiente'.")
 
     # =========================================================================
-    # 3. ⏰ PRÓXIMOS A VENCER (AVISOS NORMALES Y CUENTAS POR DEJAR VENCER)
+    # 3. ⏰ PRÓXIMOS A VENCER
     # =========================================================================
     st.divider()
     st.markdown("### ⏰ Próximos a Vencer")
@@ -133,15 +130,12 @@ if password == CLAVE_MAESTRA:
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # Si ya venció pero no dice "pendiente", el círculo es amarillo porque simplemente esperas a ver si paga o lo borras
-            color_circulo = "🟡"
-            
-            with st.expander(f"{color_circulo} AVISAR RENOVAR: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
+            with st.expander(f"🟡 AVISAR RENOVAR: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_preventivo = (
                     f"Hola “{nombre}” 🫂\n\n"
                     f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
                     f"Si deseas renovar, te dejo los datos de pago.\n\n"
-                    f"*Pago móvil* 💳\n"
+                    f"Pago móvil 💳\n"
                     f"Banco: Bancamiga\n"
                     f"Documento: 13024234\n"
                     f"Teléfono: 04246379018\n"
@@ -152,7 +146,9 @@ if password == CLAVE_MAESTRA:
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
-                link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_preventivo.encode('utf-8'))}"
+                
+                # CORRECCIÓN DE EMOJIS: Sin encode manual
+                link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_preventivo)}"
                 st.markdown(f"[📲 Enviar Mensaje de Cobro Standard]({link_cobro})")
     else:
         st.write("No hay vencimientos en el rango de aviso.")
@@ -203,7 +199,9 @@ if password == CLAVE_MAESTRA:
                 
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
-                link_entrega = f"https://wa.me/{num}?text={urllib.parse.quote(msg_entrega.encode('utf-8'))}"
+                
+                # CORRECCIÓN DE EMOJIS: Sin encode manual
+                link_entrega = f"https://wa.me/{num}?text={urllib.parse.quote(msg_entrega)}"
                 st.markdown(f"[🚀 Enviar Datos de Acceso]({link_entrega})")
     else:
         st.write("No hay membresías activas registradas.")
