@@ -38,9 +38,9 @@ if password == CLAVE_MAESTRA:
         df = df.sort_values(by='vencimiento')
 
     # =========================================================================
-    # 1. ✨ PERFILES DISPONIBLES
+    # 1. 💟 PERFILES DISPONIBLES
     # =========================================================================
-    st.markdown("### ✨ Perfiles Disponibles")
+    st.markdown("### 💟 Perfiles Disponibles")
     condicion_libre = pd.Series(False, index=df.index)
     if 'estatus' in df.columns:
         condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante', na=False)) | \
@@ -145,7 +145,6 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_prepagado)
                 link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # CORRECCIÓN DE TARGET A "ventana_wa"
                 st.markdown(f'<a href="{link_prepagado}" target="ventana_wa" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
@@ -183,7 +182,6 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_deudor)
                 link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # CORRECCIÓN DE TARGET A "ventana_wa"
                 st.markdown(f'<a href="{link_cobro}" target="ventana_wa" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
     else:
         st.write("✅ Todo al día. Ningún cliente moroso.")
@@ -222,7 +220,6 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_preventivo)
                 link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # CORRECCIÓN DE TARGET A "ventana_wa"
                 st.markdown(f'<a href="{link_cobro}" target="ventana_wa" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay vencimientos para hoy o las próximas 48 horas.")
@@ -276,24 +273,32 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_entrega)
                 link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # CORRECCIÓN DE TARGET A "ventana_wa"
                 st.markdown(f'<a href="{link_entrega}" target="ventana_wa" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay membresías activas a largo plazo registradas.")
 
     # =========================================================================
-    # 6. 📝 BASE DE DATOS EDITABLE
+    # 6. 📝 BASE DE DATOS EDITABLE (MODIFICADO PARA PERMITIR ESCRITURA LIBRE)
     # =========================================================================
     st.divider()
     st.subheader("📝 Base de Datos Editable")
     st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente.")
     
-    df_editado = st.data_editor(df, num_rows="dynamic", use_container_width=True)
+    # Truco de estabilidad: Pasamos la columna de fecha a texto limpio en el editor 
+    # para que Streamlit te permita escribir libremente y pulsar Enter sin borrar nada.
+    df_editor = df.copy()
+    if 'vencimiento' in df_editor.columns:
+        df_editor['vencimiento'] = df_editor['vencimiento'].dt.strftime('%d/%m/%Y').fillna('')
+    
+    df_editado = st.data_editor(df_editor, num_rows="dynamic", use_container_width=True)
     
     if st.button("💾 Guardar Cambios en Google Sheets"):
         try:
             if 'vencimiento' in df_editado.columns:
-                df_editado['vencimiento'] = df_editado['vencimiento'].dt.strftime('%d/%m/%Y')
+                # Convertimos de forma segura a objetos temporales lo que sea que hayas escrito
+                fechas_convertidas = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
+                # Formateamos fila por fila a texto para que Google Sheets lo procese sin error.
+                df_editado['vencimiento'] = [x.strftime('%d/%m/%Y') if pd.notna(x) else '' for x in fechas_convertidas]
             
             conn.update(data=df_editado)
             st.success("¡Datos guardados con éxito! 🚀 La pantalla se actualizará en breve...")
