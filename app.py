@@ -27,7 +27,12 @@ password = st.sidebar.text_input("Contraseña", type="password")
 
 if password == CLAVE_MAESTRA:
     tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
+    
+    # Conseguimos la fecha actual (solo año-mes-día para comparar limpiamente sin horas)
     ahora = datetime.now()
+    fecha_hoy = datetime(ahora.year, ahora.month, ahora.day)
+    # Límite máximo de cobro: 2 días después de hoy
+    fecha_limite_cobro = fecha_hoy + timedelta(days=2)
 
     # Preparar el DataFrame convirtiendo fechas
     if 'vencimiento' in df.columns:
@@ -65,16 +70,24 @@ if password == CLAVE_MAESTRA:
         
         if pd.isna(vence_dt): 
             continue
+            
+        # Convertimos la fecha de vencimiento a fecha sin hora para comparar con precisión
+        fecha_vence = datetime(vence_dt.year, vence_dt.month, vence_dt.day)
 
-        if estatus == 'pendiente':
-            lista_pagos_pendientes.append(row)
-        elif estatus != 'pagado' and vence_dt <= ahora + timedelta(days=2):
-            lista_proximos_vencer.append(row)
+        # NUEVA LÓGICA FILTRADA POR TU REGLA DE FECHAS:
+        # Si ya está marcado como 'pendiente' o su fecha es menor/igual a hoy o está en los próximos 2 días
+        if estatus == 'pendiente' or fecha_vence <= fecha_limite_cobro:
+            # Separamos en alertas según corresponda para que mantengas orden visual
+            if estatus == 'pendiente' or fecha_vence < fecha_hoy:
+                lista_pagos_pendientes.append(row)
+            else:
+                lista_proximos_vencer.append(row)
         else:
+            # Si vence en 3 días o más y no está pendiente, se queda en Activos normales sin molestar
             lista_activos.append(row)
 
     # =========================================================================
-    # 2. 🔍 PAGOS PENDIENTES
+    # 2. 🔍 PAGOS PENDIENTES (Vencidos o con estatus Pendiente)
     # =========================================================================
     st.divider()
     st.markdown("### 🔍 Pagos pendientes")
@@ -90,32 +103,31 @@ if password == CLAVE_MAESTRA:
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
             with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
-                # Texto codificado para navegadores de escritorio (Mac) con códigos de escape directos
                 msg_deudor = (
-                    f"Hola “{nombre}” 🫂%0A"
-                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.%0A%0A"
-                    f"Te dejo por aquí los datos para que puedas ponerte al día.%0A"
-                    f"Pago móvil 💳%0A"
-                    f"Banco: Bancamiga%0A"
-                    f"Documento: 13024234%0A"
-                    f"Teléfono: 04246379018%0A"
-                    f"Concepto: *PAGO*%0A"
-                    f"Monto: *{monto_bs} Bs.*%0A%0A"
-                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
+                    f"Hola “{nombre}” 🫂\n"
+                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.\n\n"
+                    f"Te dejo por aquí los datos para que puedas ponerte al día.\n"
+                    f"Pago móvil 💳\n"
+                    f"Banco: Bancamiga\n"
+                    f"Documento: 13024234\n"
+                    f"Teléfono: 04246379018\n"
+                    f"Concepto: *PAGO*\n"
+                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
-                texto_final = msg_deudor.replace(" ", "%20")
-                # api.whatsapp.com detecta la sesión web existente o abre la app de Mac de forma limpia
-                link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_final}"
-                st.markdown(f"[📲 Enviar Recordatorio de Deuda]({link_cobro})")
+                texto_url = urllib.parse.quote(msg_deudor)
+                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                
+                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
     else:
-        st.write("✅ Todo al día. Ningún cliente bajo el estatus 'Pendiente'.")
+        st.write("✅ Todo al día. Ningún deudor ni vencido.")
 
     # =========================================================================
-    # 3. ⏰ PRÓXIMOS A VENCER
+    # 3. ⏰ PRÓXIMOS A VENCER (Vencen Hoy, Mañana o Pasado Mañana)
     # =========================================================================
     st.divider()
     st.markdown("### ⏰ Próximos a Vencer")
@@ -132,29 +144,30 @@ if password == CLAVE_MAESTRA:
             
             with st.expander(f"🟡 AVISAR RENOVAR: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_preventivo = (
-                    f"Hola “{nombre}” 🫂%0A%0A"
-                    f"Ya está disponible la renovación de tu suscripción de {servicio}.%0A%0A"
-                    f"Si deseas renovar, te dejo los datos de pago.%0A%0A"
-                    f"Pago móvil 💳%0A"
-                    f"Banco: Bancamiga%0A"
-                    f"Documento: 13024234%0A"
-                    f"Teléfono: 04246379018%0A"
-                    f"Concepto: *PAGO*%0A"
-                    f"Monto: *{monto_bs} Bs.*%0A%0A"
-                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
+                    f"Hola “{nombre}” 🫂\n\n"
+                    f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
+                    f"Si deseas renovar, te dejo los datos de pago.\n\n"
+                    f"Pago móvil 💳\n"
+                    f"Banco: Bancamiga\n"
+                    f"Documento: 13024234\n"
+                    f"Teléfono: 04246379018\n"
+                    f"Concepto: *PAGO*\n"
+                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
-                texto_final = msg_preventivo.replace(" ", "%20")
-                link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_final}"
-                st.markdown(f"[📲 Enviar Mensaje de Cobro Standard]({link_cobro})")
+                texto_url = urllib.parse.quote(msg_preventivo)
+                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                
+                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
     else:
-        st.write("No hay vencimientos en el rango de aviso.")
+        st.write("No hay vencimientos en el rango de aviso (hoy o próximas 48 horas).")
 
     # =========================================================================
-    # 4. 🟢 ACTIVOS
+    # 4. 🟢 ACTIVOS (Vencen en 3 días o más)
     # =========================================================================
     st.divider()
     st.markdown("### 🟢 Activos")
@@ -182,29 +195,30 @@ if password == CLAVE_MAESTRA:
 
                 msg_entrega = (
                     f"✨ Aquí están tus datos personales de acceso. No los compartas con nadie. "
-                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.%0A%0A"
-                    f"⚡️Conexiones: {conexiones}%0A"
-                    f"📆 Próxima renovación: {fecha_vence_str}%0A%0A"
+                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.\n\n"
+                    f"⚡️Conexiones: {conexiones}\n"
+                    f"📆 Próxima renovación: {fecha_vence_str}\n\n"
                 )
                 
                 if "jumangistv" in servicio.lower():
-                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
+                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082\n"
                 
-                msg_entrega += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
+                msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
                 
                 if "flujotv" in servicio.lower():
-                    msg_entrega += f"🚯 PIN contenido adulto: 1234%0A"
+                    msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
                 
-                msg_entrega += f"%0A¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
+                msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
                 
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
-                texto_final = msg_entrega.replace(" ", "%20")
-                link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_final}"
-                st.markdown(f"[🚀 Enviar Datos de Acceso]({link_entrega})")
+                texto_url = urllib.parse.quote(msg_entrega)
+                link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                
+                st.markdown(f'<a href="{link_entrega}" target="_self" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
     else:
-        st.write("No hay membresías activas registradas.")
+        st.write("No hay membresías activas a largo plazo registradas.")
 
     st.divider()
     st.subheader("👥 Base de Datos General")
