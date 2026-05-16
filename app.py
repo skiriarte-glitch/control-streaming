@@ -28,10 +28,11 @@ password = st.sidebar.text_input("Contraseña", type="password")
 if password == CLAVE_MAESTRA:
     tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
     
-    # Conseguimos la fecha actual (solo año-mes-día para comparar limpiamente sin horas)
+    # 1. CONSEGUIR FECHA DE HOY LIMPIA (Sin horas, minutos ni segundos)
     ahora = datetime.now()
     fecha_hoy = datetime(ahora.year, ahora.month, ahora.day)
-    # Límite máximo de cobro: 2 días después de hoy
+    
+    # 2. LÍMITE MÁXIMO DE COBRO (Exactamente hoy + 2 días, a las 00:00:00)
     fecha_limite_cobro = fecha_hoy + timedelta(days=2)
 
     # Preparar el DataFrame convirtiendo fechas
@@ -71,23 +72,24 @@ if password == CLAVE_MAESTRA:
         if pd.isna(vence_dt): 
             continue
             
-        # Convertimos la fecha de vencimiento a fecha sin hora para comparar con precisión
+        # 3. EXTRAER SOLO EL AÑO-MES-DÍA DEL CLIENTE (Elimina interferencia de horas)
         fecha_vence = datetime(vence_dt.year, vence_dt.month, vence_dt.day)
 
-        # NUEVA LÓGICA FILTRADA POR TU REGLA DE FECHAS:
-        # Si ya está marcado como 'pendiente' o su fecha es menor/igual a hoy o está en los próximos 2 días
-        if estatus == 'pendiente' or fecha_vence <= fecha_limite_cobro:
-            # Separamos en alertas según corresponda para que mantengas orden visual
-            if estatus == 'pendiente' or fecha_vence < fecha_hoy:
-                lista_pagos_pendientes.append(row)
-            else:
-                lista_proximos_vencer.append(row)
+        # APLICACIÓN DE TUS REGLAS SIN INTERFERENCIAS:
+        if estatus == 'pendiente' or fecha_vence < fecha_hoy:
+            # Si el estatus manual es 'pendiente' o el día de vencimiento ya pasó (es menor a hoy)
+            lista_pagos_pendientes.append(row)
+            
+        elif fecha_hoy <= fecha_vence <= fecha_limite_cobro:
+            # Si vence HOY, MAÑANA o PASADO MAÑANA
+            lista_proximos_vencer.append(row)
+            
         else:
-            # Si vence en 3 días o más y no está pendiente, se queda en Activos normales sin molestar
+            # Si vence dentro de 3 días o más
             lista_activos.append(row)
 
     # =========================================================================
-    # 2. 🔍 PAGOS PENDIENTES (Vencidos o con estatus Pendiente)
+    # 2. 🔍 PAGOS PENDIENTES
     # =========================================================================
     st.divider()
     st.markdown("### 🔍 Pagos pendientes")
@@ -127,7 +129,7 @@ if password == CLAVE_MAESTRA:
         st.write("✅ Todo al día. Ningún deudor ni vencido.")
 
     # =========================================================================
-    # 3. ⏰ PRÓXIMOS A VENCER (Vencen Hoy, Mañana o Pasado Mañana)
+    # 3. ⏰ PRÓXIMOS A VENCER
     # =========================================================================
     st.divider()
     st.markdown("### ⏰ Próximos a Vencer")
@@ -152,7 +154,7 @@ if password == CLAVE_MAESTRA:
                     f"Documento: 13024234\n"
                     f"Teléfono: 04246379018\n"
                     f"Concepto: *PAGO*\n"
-                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Monto: *{monto_bs} Bs.*%0A%0A"
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
@@ -167,7 +169,7 @@ if password == CLAVE_MAESTRA:
         st.write("No hay vencimientos en el rango de aviso (hoy o próximas 48 horas).")
 
     # =========================================================================
-    # 4. 🟢 ACTIVOS (Vencen en 3 días o más)
+    # 4. 🟢 ACTIVOS
     # =========================================================================
     st.divider()
     st.markdown("### 🟢 Activos")
