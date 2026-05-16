@@ -66,7 +66,6 @@ if password == CLAVE_MAESTRA:
         if pd.isna(vence_dt): 
             continue
 
-        # LÓGICA DE CLASIFICACIÓN PRECISA
         if estatus == 'pendiente':
             lista_pagos_pendientes.append(row)
         elif estatus != 'pagado' and vence_dt <= ahora + timedelta(days=2):
@@ -75,7 +74,7 @@ if password == CLAVE_MAESTRA:
             lista_activos.append(row)
 
     # =========================================================================
-    # 2. 🔍 PAGOS PENDIENTES (MENSAJE NUEVO CORREGIDO)
+    # 2. 🔍 PAGOS PENDIENTES
     # =========================================================================
     st.divider()
     st.markdown("### 🔍 Pagos pendientes")
@@ -91,7 +90,7 @@ if password == CLAVE_MAESTRA:
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
             with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre} ({servicio}) - Vence: {fecha_vence_str}"):
-                # TEXTO AJUSTADO EXACTAMENTE A TU SOLICITUD
+                # CONSTRUCCIÓN BLINDADA CON URLENCODE DIRECTO
                 msg_deudor = (
                     f"Hola “{nombre}” 🫂\n"
                     f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.\n\n"
@@ -108,8 +107,9 @@ if password == CLAVE_MAESTRA:
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
-                # CORRECCIÓN DE EMOJIS: Quitamos el .encode('utf-8') que rompía el link en web
-                link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_deudor)}"
+                # Usamos quote_plus para asegurar el formateo limpio de espacios y saltos de línea web
+                texto_url = urllib.parse.quote_plus(msg_deudor)
+                link_cobro = f"https://wa.me/{num}?text={texto_url}"
                 st.markdown(f"[📲 Enviar Recordatorio de Deuda]({link_cobro})")
     else:
         st.write("✅ Todo al día. Ningún cliente bajo el estatus 'Pendiente'.")
@@ -147,8 +147,8 @@ if password == CLAVE_MAESTRA:
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
-                # CORRECCIÓN DE EMOJIS: Sin encode manual
-                link_cobro = f"https://wa.me/{num}?text={urllib.parse.quote(msg_preventivo)}"
+                texto_url = urllib.parse.quote_plus(msg_preventivo)
+                link_cobro = f"https://wa.me/{num}?text={texto_url}"
                 st.markdown(f"[📲 Enviar Mensaje de Cobro Standard]({link_cobro})")
     else:
         st.write("No hay vencimientos en el rango de aviso.")
@@ -200,8 +200,8 @@ if password == CLAVE_MAESTRA:
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
-                # CORRECCIÓN DE EMOJIS: Sin encode manual
-                link_entrega = f"https://wa.me/{num}?text={urllib.parse.quote(msg_entrega)}"
+                texto_url = urllib.parse.quote_plus(msg_entrega)
+                link_entrega = f"https://wa.me/{num}?text={texto_url}"
                 st.markdown(f"[🚀 Enviar Datos de Acceso]({link_entrega})")
     else:
         st.write("No hay membresías activas registradas.")
