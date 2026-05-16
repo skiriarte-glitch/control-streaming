@@ -38,9 +38,9 @@ if password == CLAVE_MAESTRA:
         df = df.sort_values(by='vencimiento')
 
     # =========================================================================
-    # 1. 🟣 PERFILES DISPONIBLES
+    # 1. 💟 PERFILES DISPONIBLES
     # =========================================================================
-    st.markdown("### 🟣 Perfiles Disponibles")
+    st.markdown("### 💟 Perfiles Disponibles")
     condicion_libre = pd.Series(False, index=df.index)
     if 'estatus' in df.columns:
         condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante', na=False)) | \
@@ -148,7 +148,7 @@ if password == CLAVE_MAESTRA:
                 st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
-    # 3. 🔴 PAGOS PENDIENTES
+    # 3. 🚩 PAGOS PENDIENTES
     # =========================================================================
     st.divider()
     st.markdown("### 🔴 Pagos pendientes")
@@ -225,10 +225,10 @@ if password == CLAVE_MAESTRA:
         st.write("No hay vencimientos para hoy o las próximas 48 horas.")
 
     # =========================================================================
-    # 5. 🟢 ACTIVOS
+    # 5. ✅ ACTIVOS
     # =========================================================================
     st.divider()
-    st.markdown("### 🟢 Activos")
+    st.markdown("### ✅ Activos")
     
     if len(lista_activos) > 0:
         for item in lista_activos:
