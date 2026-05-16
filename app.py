@@ -122,22 +122,22 @@ if password == CLAVE_MAESTRA:
                     conexiones = "3"
 
                 msg_prepagado = (
-                    f"Hola “{primer_nombre}” 🫂%0A%0A"
-                    f"Tu mes ha sido renovado exitosamente como parte de tu pago adelantado. ✨%0A"
-                    f"Aquí tienes tus datos de acceso para que sigas disfrutando de {servicio}.%0A%0A"
-                    f"⚡️Conexiones: {conexiones}%0A"
-                    f"📆 Próximo corte: {fecha_vence_str}%0A%0A"
+                    f"Hola “{primer_nombre}” 🫂\n\n"
+                    f"Tu mes ha sido renovado exitosamente como parte de tu pago adelantado. ✨\n"
+                    f"Aquí tienes tus datos de acceso para que sigas disfrutando de {servicio}.\n\n"
+                    f"⚡️Conexiones: {conexiones}\n"
+                    f"📆 Próximo corte: {fecha_vence_str}\n\n"
                 )
                 
                 if "jumangistv" in servicio.lower():
-                    msg_prepagado += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
+                    msg_prepagado += f"🛜Host/URL: http://jumangis.cloud:2082\n"
                 
-                msg_prepagado += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
+                msg_prepagado += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
                 
                 if "flujotv" in servicio.lower():
-                    msg_prepagado += f"🚯 PIN contenido adulto: 1234%0A"
+                    msg_prepagado += f"🚯 PIN contenido adulto: 1234\n"
                 
-                msg_prepagado += f"%0A¡Disfruta de tus contenidos favoritos! 📩"
+                msg_prepagado += f"\n¡Disfruta de tus contenidos favoritos! 📩"
                 
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
@@ -165,16 +165,16 @@ if password == CLAVE_MAESTRA:
             # USO DE EXPANDER PARA MANTENER EL BOTÓN OCULTO
             with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_deudor = (
-                    f"Hola “{primer_nombre}” 🫂%0A"
-                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.%0A%0A"
-                    f"Te dejo por aquí los datos para que puedas ponerte al día.%0A"
-                    f"Pago móvil 💳%0A"
-                    f"Banco: Bancamiga%0A"
-                    f"Documento: 13024234%0A"
-                    f"Teléfono: 04246379018%0A"
-                    f"Concepto: *PAGO*%0A"
-                    f"Monto: *{monto_bs} Bs.*%0A%0A"
-                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
+                    f"Hola “{primer_nombre}” 🫂\n"
+                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.\n\n"
+                    f"Te dejo por aquí los datos para que puedas ponerte al día.\n"
+                    f"Pago móvil 💳\n"
+                    f"Banco: Bancamiga\n"
+                    f"Documento: 13024234\n"
+                    f"Teléfono: 04246379018\n"
+                    f"Concepto: *PAGO*\n"
+                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
@@ -204,16 +204,16 @@ if password == CLAVE_MAESTRA:
             
             with st.expander(f"🟡 AVISAR RENOVAR: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_preventivo = (
-                    f"Hola “{primer_nombre}” 🫂%0A%0A"
-                    f"Ya está disponible la renovación de tu suscripción de {servicio}.%0A%0A"
-                    f"Si deseas renovar, te dejo los datos de pago.%0A%0A"
-                    f"Pago móvil 💳%0A"
-                    f"Banco: Bancamiga%0A"
-                    f"Documento: 13024234%0A"
-                    f"Teléfono: 04246379018%0A"
-                    f"Concepto: *PAGO*%0A"
-                    f"Monto: *{monto_bs} Bs.*%0A%0A"
-                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵%0A%0A"
+                    f"Hola “{primer_nombre}” 🫂\n\n"
+                    f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
+                    f"Si deseas renovar, te dejo los datos de pago.\n\n"
+                    f"Pago móvil 💳\n"
+                    f"Banco: Bancamiga\n"
+                    f"Documento: 13024234\n"
+                    f"Teléfono: 04246379018\n"
+                    f"Concepto: *PAGO*\n"
+                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
@@ -254,20 +254,20 @@ if password == CLAVE_MAESTRA:
 
                 msg_entrega = (
                     f"✨ Aquí están tus datos personales de acceso. No los compartas con nadie. "
-                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.%0A%0A"
-                    f"⚡️Conexiones: {conexiones}%0A"
-                    f"📆 Próxima renovación: {fecha_vence_str}%0A%0A"
+                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.\n\n"
+                    f"⚡️Conexiones: {conexiones}\n"
+                    f"📆 Próxima renovación: {fecha_vence_str}\n\n"
                 )
                 
                 if "jumangistv" in servicio.lower():
-                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082%0A"
+                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082\n"
                 
-                msg_entrega += f"👤 Usuario: {id_u}%0A🔐 Contraseña: {clave}%0A"
+                msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
                 
                 if "flujotv" in servicio.lower():
-                    msg_entrega += f"🚯 PIN contenido adulto: 1234%0A"
+                    msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
                 
-                msg_entrega += f"%0A¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
+                msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
                 
                 num = str(row.get('telefono', '58')).split('.')[0].strip()
                 if not num.startswith("58") and num != "": num = f"58{num}"
