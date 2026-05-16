@@ -171,7 +171,7 @@ if password == CLAVE_MAESTRA:
                     f"Banco: Bancamiga\n"
                     f"13024234\n"
                     f"04246379018\n"
-                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"*{monto_bs} Bs.*\n\n"
                     f"Concepto en *BLANCO* o *PAGO*\n"
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
@@ -210,7 +210,7 @@ if password == CLAVE_MAESTRA:
                     f"13024234\n"
                     f"04246379018\n"
                     f"Concepto en *BLANCO* o *PAGO*\n"
-                    f"Monto: {monto_bs} Bs.\n\n"
+                    f"{monto_bs} Bs.\n\n"
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
