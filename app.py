@@ -15,7 +15,7 @@ CLAVE_MAESTRA = "Prueba123"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- BOTÓN DE ACTUALIZACIÓN MANUAL ---
-if st.sidebar.button("🔄 Actualizar Datos Ahora"):
+if st.sidebar.button("🔄 Actualizar"):
     st.cache_data.clear()
     st.rerun()
 
@@ -38,9 +38,9 @@ if password == CLAVE_MAESTRA:
         df = df.sort_values(by='vencimiento')
 
     # =========================================================================
-    # 1. 💜 PERFILES DISPONIBLES
+    # 1. 🟣 PERFILES DISPONIBLES
     # =========================================================================
-    st.markdown("### 💜 Perfiles Disponibles")
+    st.markdown("### 🟣 Perfiles Disponibles")
     condicion_libre = pd.Series(False, index=df.index)
     if 'estatus' in df.columns:
         condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante', na=False)) | \
@@ -95,11 +95,11 @@ if password == CLAVE_MAESTRA:
             lista_activos.append((row, nombre_completo, primer_nombre))
 
     # =========================================================================
-    # 2. 🔵 PREPAGADOS POR ACTUALIZAR
+    # 2. ♻️ PREPAGADOS POR ACTUALIZAR
     # =========================================================================
     if len(lista_prepagados) > 0:
         st.divider()
-        st.markdown("### 🔵 Prepagados por Actualizar")
+        st.markdown("### ♻️ Prepagados por Actualizar")
         st.write("Clientes que pagaron por adelantado. Pásales sus claves nuevas, cambia su fecha y bájales 1 mes de adelanto en la tabla cuando corresponda.")
         
         for item in lista_prepagados:
@@ -113,7 +113,7 @@ if password == CLAVE_MAESTRA:
             meses_restantes = int(float(row.get('meses_adelanto', 0)))
 
             # USO DE EXPANDER PARA MANTENER EL BOTÓN OCULTO
-            with st.expander(f"🔵 PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
+            with st.expander(f"♻️ PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -122,9 +122,9 @@ if password == CLAVE_MAESTRA:
                     conexiones = "3"
 
                 msg_prepagado = (
-                    f"Hola “{primer_nombre}” 🫂\n\n"
-                    f"Tu mes ha sido renovado exitosamente como parte de tu pago adelantado. ✨\n"
-                    f"Aquí tienes tus datos de acceso para que sigas disfrutando de {servicio}.\n\n"
+                    f"Hola {primer_nombre} 🫂\n\n"
+                    f"Tu recarga ha sido procesada exitosamente. ✨\n"
+                    f"Aquí tienes los datos de acceso para que sigas disfrutando de tu servicio.\n\n"
                     f"⚡️Conexiones: {conexiones}\n"
                     f"📆 Próximo corte: {fecha_vence_str}\n\n"
                 )
@@ -148,10 +148,10 @@ if password == CLAVE_MAESTRA:
                 st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
-    # 3. 🔍 PAGOS PENDIENTES
+    # 3. 🔴 PAGOS PENDIENTES
     # =========================================================================
     st.divider()
-    st.markdown("### 🔍 Pagos pendientes")
+    st.markdown("### 🔴 Pagos pendientes")
     
     if len(lista_pagos_pendientes) > 0:
         for item in lista_pagos_pendientes:
@@ -165,15 +165,14 @@ if password == CLAVE_MAESTRA:
             # USO DE EXPANDER PARA MANTENER EL BOTÓN OCULTO
             with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_deudor = (
-                    f"Hola “{primer_nombre}” 🫂\n"
-                    f"Te escribo para recordarte que ya se realizó la renovación de tu suscripción de {servicio}, pero aún tenemos pendiente el pago.\n\n"
+                    f"Hola {primer_nombre} 🫂\n"
+                    f"Te escribo para recordarte que tenemos pendiente el pago de la renovación.\n\n"
                     f"Te dejo por aquí los datos para que puedas ponerte al día.\n"
-                    f"Pago móvil 💳\n"
                     f"Banco: Bancamiga\n"
-                    f"Documento: 13024234\n"
-                    f"Teléfono: 04246379018\n"
-                    f"Concepto: *PAGO*\n"
+                    f"13024234\n"
+                    f"04246379018\n"
                     f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Concepto en *BLANCO* o *PAGO*\n"
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
                 )
@@ -204,15 +203,14 @@ if password == CLAVE_MAESTRA:
             
             with st.expander(f"🟡 AVISAR RENOVAR: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_preventivo = (
-                    f"Hola “{primer_nombre}” 🫂\n\n"
-                    f"Ya está disponible la renovación de tu suscripción de {servicio}.\n\n"
+                    f"Hola {primer_nombre} 🫂\n\n"
+                    f"Ya está disponible la renovación de tu suscripción.\n\n"
                     f"Si deseas renovar, te dejo los datos de pago.\n\n"
-                    f"Pago móvil 💳\n"
-                    f"Banco: Bancamiga\n"
-                    f"Documento: 13024234\n"
-                    f"Teléfono: 04246379018\n"
-                    f"Concepto: *PAGO*\n"
-                    f"Monto: *{monto_bs} Bs.*\n\n"
+                    f"Bancamiga\n"
+                    f"13024234\n"
+                    f"04246379018\n"
+                    f"Concepto en *BLANCO* o *PAGO*\n"
+                    f"Monto: {monto_bs} Bs.\n\n"
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
@@ -253,7 +251,7 @@ if password == CLAVE_MAESTRA:
                     conexiones = "3"
 
                 msg_entrega = (
-                    f"✨ Aquí están tus datos personales de acceso. No los compartas con nadie. "
+                    f"✨ Aquí están tus datos de acceso. No los compartas con nadie. "
                     f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.\n\n"
                     f"⚡️Conexiones: {conexiones}\n"
                     f"📆 Próxima renovación: {fecha_vence_str}\n\n"
