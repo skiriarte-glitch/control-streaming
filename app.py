@@ -151,7 +151,7 @@ if password == CLAVE_MAESTRA:
     # 3. 🚩 PAGOS PENDIENTES
     # =========================================================================
     st.divider()
-    st.markdown("### 🔴 Pagos pendientes")
+    st.markdown("### 🚩 Pagos pendientes")
     
     if len(lista_pagos_pendientes) > 0:
         for item in lista_pagos_pendientes:
