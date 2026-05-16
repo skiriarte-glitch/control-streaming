@@ -38,9 +38,9 @@ if password == CLAVE_MAESTRA:
         df = df.sort_values(by='vencimiento')
 
     # =========================================================================
-    # 1. 💟 PERFILES DISPONIBLES
+    # 1. ✨ PERFILES DISPONIBLES
     # =========================================================================
-    st.markdown("### 💟 Perfiles Disponibles")
+    st.markdown("### ✨ Perfiles Disponibles")
     condicion_libre = pd.Series(False, index=df.index)
     if 'estatus' in df.columns:
         condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante', na=False)) | \
