@@ -58,6 +58,7 @@ if password == CLAVE_MAESTRA:
     lista_pagos_pendientes = []
     lista_proximos_vencer = []
     lista_activos = []
+    lista_inactivos = [] # NUEVA LISTA
 
     for index, row in clientes_activos.iterrows():
         # Extracción del nombre completo y del primer nombre
@@ -66,6 +67,12 @@ if password == CLAVE_MAESTRA:
         primer_nombre = nombre_completo.split()[0] if nombre_completo != "Cliente" else "Cliente"
         
         estatus = str(row.get('estatus', '')).strip().lower()
+        
+        # NUEVO AJUSTE: Filtramos primero a los inactivos/cancelados para sacarlos de los cobros
+        if 'inactivo' in estatus or 'cancelado' in estatus:
+            lista_inactivos.append((row, nombre_completo, primer_nombre))
+            continue
+            
         vence_dt = row.get('vencimiento', pd.NaT)
         
         if pd.isna(vence_dt): 
@@ -84,7 +91,7 @@ if password == CLAVE_MAESTRA:
         if meses_adelanto > 0:
             lista_prepagados.append((row, nombre_completo, primer_nombre))
             
-        # NUEVA CATEGORÍA: Si el estatus es 'pagado' pero la fecha está vencida, vence hoy o dentro de 2 días
+        # Si el estatus es 'pagado' pero la fecha está vencida, vence hoy o dentro de 2 días
         elif estatus == 'pagado' and (fecha_vence <= fecha_limite_cobro):
             lista_pendiente_renovar_pagados.append((row, nombre_completo, primer_nombre))
             
@@ -95,7 +102,8 @@ if password == CLAVE_MAESTRA:
             lista_proximos_vencer.append((row, nombre_completo, primer_nombre))
             
         else:
-            lista_activos.append((row, nombre_completo, primer_nombre))
+            # Añadimos la fecha_vence a la tupla para poder ordenarlos estrictamente luego
+            lista_activos.append((row, nombre_completo, primer_nombre, fecha_vence))
 
     # =========================================================================
     # 2. ♻️ PREPAGADOS POR ACTUALIZAR
@@ -115,7 +123,8 @@ if password == CLAVE_MAESTRA:
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             meses_restantes = int(float(row.get('meses_adelanto', 0)))
 
-            with st.expander(f"♻️ PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
+            # AJUSTE: Añadido "Cuenta: {id_u}" a la vista previa del menú
+            with st.expander(f"♻️ PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} ({servicio}) - Cuenta: {id_u} - Vence: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -150,11 +159,11 @@ if password == CLAVE_MAESTRA:
                 st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
-    # ⏳ PENDIENTES POR RENOVAR
+    # ⏳ PENDIENTES POR RENOVAR (YA PAGARON)
     # =========================================================================
     if len(lista_pendiente_renovar_pagados) > 0:
         st.divider()
-        st.markdown("### ⏳ Pendientes por Renovar")
+        st.markdown("### ⏳ Pendientes por Renovar (Ya Pagaron)")
         st.write("Clientes que ya pagaron su renovación pero estás esperando para actualizar sus datos de acceso o cambiar su fecha de vencimiento.")
         
         for item in lista_pendiente_renovar_pagados:
@@ -166,7 +175,8 @@ if password == CLAVE_MAESTRA:
             vence_dt = row['vencimiento']
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y %H:%M:%S')
 
-            with st.expander(f"⏳ RECOBRADO / PENDIENTE RENOVAR: {nombre_completo} ({servicio}) - Fecha antigua: {fecha_vence_str}"):
+            # AJUSTE: Añadido "Cuenta: {id_u}" a la vista previa del menú
+            with st.expander(f"⏳ RECOBRADO / PENDIENTE RENOVAR: {nombre_completo} ({servicio}) - Cuenta: {id_u} - Fecha antigua: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -280,8 +290,11 @@ if password == CLAVE_MAESTRA:
     st.markdown("### ✅ Activos")
     
     if len(lista_activos) > 0:
+        # AJUSTE: Forzamos el orden ascendente estricto por la fecha de vencimiento (del más cercano al más lejano)
+        lista_activos.sort(key=lambda x: x[3])
+        
         for item in lista_activos:
-            row, nombre_completo, primer_nombre = item
+            row, nombre_completo, primer_nombre, _ = item  # El "_" ignora la variable de la fecha cruda que usamos solo para ordenar
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
             clave = row.get('clave', 'S/D')
@@ -327,19 +340,39 @@ if password == CLAVE_MAESTRA:
         st.write("No hay membresías activas a largo plazo registradas.")
 
     # =========================================================================
-    # 6. 📝 BASE DE DATOS EDITABLE (COLUMNAS DE TEXTO DESBLOQUEADAS DEFINITIVAMENTE)
+    # 6. ❌ CLIENTES INACTIVOS (NUEVA SECCIÓN)
+    # =========================================================================
+    st.divider()
+    st.markdown("### ❌ Clientes Inactivos / No Renovaron")
+    
+    if len(lista_inactivos) > 0:
+        st.write("Clientes marcados como inactivos. Conservan su usuario registrado por si regresan.")
+        for item in lista_inactivos:
+            row, nombre_completo, primer_nombre = item
+            servicio = str(row.get('servicio', 'S/D')).strip()
+            id_u = row.get('id_cuenta', 'S/D')
+            vence_dt = row.get('vencimiento', pd.NaT)
+            fecha_vence_str = vence_dt.strftime('%d-%m-%Y') if pd.notna(vence_dt) else "Fecha desconocida"
+            
+            with st.expander(f"❌ INACTIVO: {nombre_completo} ({servicio}) - Última cuenta: {id_u} - Venció: {fecha_vence_str}"):
+                st.write(f"**Último Usuario:** `{id_u}`")
+                st.write(f"**Teléfono guardado:** `{row.get('telefono', 'S/D')}`")
+                st.write(f"**Fecha de vencimiento antigua:** {fecha_vence_str}")
+    else:
+        st.write("No hay clientes marcados como inactivos en la base de datos.")
+
+    # =========================================================================
+    # 7. 📝 BASE DE DATOS EDITABLE 
     # =========================================================================
     st.divider()
     st.subheader("📝 Base de Datos Editable")
-    st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente.")
+    st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente. **Para eliminar una fila, selecciónala desde el número gris a la izquierda y presiona Suprimir/Delete.**")
     
     df_editor = df.copy()
     
-    # AJUSTE QUIRÚRGICO: Forzamos a que las columnas críticas sean tratadas como strings limpios antes de entrar al componente
     columnas_a_desbloquear = ["clave", "telefono", "nombre", "id_cuenta", "estatus", "servicio"]
     for col in columnas_a_desbloquear:
         if col in df_editor.columns:
-            # Reemplazamos nulos o None visuales por texto en blanco y nos aseguramos de que no sean numéricos puros para el editor
             df_editor[col] = df_editor[col].fillna('').astype(str).replace('nan', '')
             
     if 'vencimiento' in df_editor.columns:
@@ -364,7 +397,6 @@ if password == CLAVE_MAESTRA:
                 fechas_convertidas = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
                 df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_convertidas]
             
-            # Limpiamos la caché global justo antes de actualizar para forzar un nuevo JWT Token limpio
             st.cache_data.clear()
             
             conn.update(data=df_editado)
