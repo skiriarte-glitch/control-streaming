@@ -19,7 +19,7 @@ if st.sidebar.button("🔄 Actualizar"):
     st.cache_data.clear()
     st.rerun()
 
-df = conn.read()
+df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/185i9CPA-e3uTvmEBKG8asklwhoPtsFf0fQsShtGiFfE/edit?gid=0#gid=0")
 # Limpieza de nombres de columnas
 df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c in df.columns]
 
