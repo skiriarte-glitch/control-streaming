@@ -351,7 +351,7 @@ if password == CLAVE_MAESTRA:
             st.write("No hay membresías activas a largo plazo registradas.")
 
         # =========================================================================
-        # 6. 📝 BASE DE DATOS EDITABLE (INACTIVOS ORDENADOS AL FINAL)
+        # 6. 📝 BASE DE DATOS EDITABLE
         # =========================================================================
         st.divider()
         st.subheader("📝 Base de Datos Editable")
@@ -359,7 +359,6 @@ if password == CLAVE_MAESTRA:
         
         df_editor = df.copy()
         
-        # AJUSTE: Ordenamos el DataFrame para empujar a los inactivos/cancelados al final de la tabla
         if 'estatus' in df_editor.columns:
             df_editor['es_inactivo'] = df_editor['estatus'].str.lower().str.contains('inactivo|cancelado', na=False)
             if 'vencimiento' in df_editor.columns:
@@ -426,23 +425,11 @@ if password == CLAVE_MAESTRA:
             st.write("No hay clientes marcados como inactivos en la base de datos.")
 
     # =========================================================================
-    # 📊 PESTAÑA 2: REPORTE FINANCIERO (OPCIÓN C - VOLUMEN MENSUAL ACTIVO)
+    # 📊 PESTAÑA 2: REPORTE FINANCIERO (CON ESCUDO ANTI-DUPLICACIÓN Y SOLO CLIENTES PAGADOS)
     # =========================================================================
     with tab2:
         st.subheader("📊 Reporte Financiero Automático")
-        st.write("Este informe calcula los ingresos, costos operacionales y ganancias estimadas basándose puramente en las suscripciones activas y prepagadas que corren actualmente en el sistema (Volumen Corriente).")
-
-        # Filtrado idéntico para aislar solo clientes vigentes (Excluye vacantes e inactivos)
-        df_rep = df.copy()
-        cond_libre_rep = pd.Series(False, index=df_rep.index)
-        if 'estatus' in df_rep.columns:
-            cond_libre_rep = (df_rep['estatus'].str.lower().str.contains('libre|vacante|disponible', na=False)) | \
-                             (df_rep['nombre'].str.lower().str.contains('disponible|libre|vacante', na=False)) | \
-                             (df_rep['nombre'].isna()) | (df_rep['nombre'].str.strip() == "")
-        
-        df_activos_rep = df_rep[~cond_libre_rep].copy()
-        if 'estatus' in df_activos_rep.columns:
-            df_activos_rep = df_activos_rep[~df_activos_rep['estatus'].str.lower().str.contains('inactivo|cancelado', na=False)]
+        st.write("Calcula los ingresos basándose en el volumen activo, excluyendo a los deudores y a los inactivos, asegurando que solo veas el dinero real ingresado en el ciclo actual.")
 
         # Variables de conteo financiero
         flujo_completas = 0
@@ -454,32 +441,65 @@ if password == CLAVE_MAESTRA:
         juman_ingreso = 0.0
         juman_costo = 0.0
 
-        for idx, row in df_activos_rep.iterrows():
+        cuentas_procesadas = {}
+
+        # AJUSTE FINANCIERO: Se excluye lista_pagos_pendientes para contar SOLO lo ya pagado
+        clientes_reporte = lista_prepagados + lista_pendiente_renovar_pagados + lista_proximos_vencer + lista_activos
+
+        for item in clientes_reporte:
+            row = item[0]
             servicio = str(row.get('servicio', '')).strip().lower()
+            id_u = str(row.get('id_cuenta', '')).strip().lower()
             precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
 
-            # Procesamiento de FlujoTV
+            # 🎬 Procesamiento Blindado de FlujoTV
             if "flujo" in servicio:
-                flujo_ingreso += precio
-                if precio == 9:
-                    flujo_completas += 1
-                    flujo_costo += 3.0  # Cuenta completa cuesta $3
-                elif precio == 6:
-                    flujo_perfiles_ind += 2
-                    flujo_costo += 2.0  # $1 por perfil
-                elif precio == 3:
-                    flujo_perfiles_ind += 1
-                    flujo_costo += 1.0  # $1 por perfil
-                elif precio > 0:
-                    perfiles_est = int(precio / 3) if precio >= 3 else 1
-                    flujo_perfiles_ind += perfiles_est
-                    flujo_costo += float(perfiles_est * 1.0)
+                if id_u != "" and id_u != "s/d" and id_u != "nan":
+                    if id_u not in cuentas_procesadas:
+                        cuentas_procesadas[id_u] = 0.0
+                    
+                    espacio_disponible = 9.0 - cuentas_procesadas[id_u]
+                    
+                    if precio > espacio_disponible:
+                        precio_a_sumar = espacio_disponible
+                    else:
+                        precio_a_sumar = precio
+                        
+                    cuentas_procesadas[id_u] += precio_a_sumar
+                else:
+                    precio_a_sumar = precio
+                
+                if precio_a_sumar > 0:
+                    flujo_ingreso += precio_a_sumar
+                    if precio_a_sumar == 9:
+                        flujo_completas += 1
+                        flujo_costo += 3.0
+                    elif precio_a_sumar == 6:
+                        flujo_perfiles_ind += 2
+                        flujo_costo += 2.0
+                    elif precio_a_sumar == 3:
+                        flujo_perfiles_ind += 1
+                        flujo_costo += 1.0
+                    else:
+                        perfiles_est = int(precio_a_sumar / 3) if precio_a_sumar >= 3 else 1
+                        flujo_perfiles_ind += perfiles_est
+                        flujo_costo += float(perfiles_est * 1.0)
 
-            # Procesamiento de JumangisTV
+            # 🛜 Procesamiento Blindado de JumangisTV
             elif "jumangis" in servicio:
-                juman_cuentas += 1
-                juman_ingreso += precio
-                juman_costo += 1.5  # Cuenta completa cuesta $1.5
+                if id_u != "" and id_u != "s/d" and id_u != "nan":
+                    if id_u not in cuentas_procesadas:
+                        cuentas_procesadas[id_u] = 0.0
+                        
+                    if cuentas_procesadas[id_u] == 0.0:
+                        juman_cuentas += 1
+                        juman_ingreso += precio
+                        juman_costo += 1.5
+                        cuentas_procesadas[id_u] = precio
+                else:
+                    juman_cuentas += 1
+                    juman_ingreso += precio
+                    juman_costo += 1.5
 
         # Cálculos Globales
         ingreso_total = flujo_ingreso + juman_ingreso
@@ -500,8 +520,8 @@ if password == CLAVE_MAESTRA:
         with col_a:
             st.markdown("### 🎬 Canal FlujoTV")
             st.markdown(f"""
-            * **Cuentas Completas ($9):** {flujo_completas}
-            * **Perfiles Individuales Vendidos:** {flujo_perfiles_ind} perfiles *(Equivalente a {flujo_perfiles_ind/3:.1f} cuentas adicionales)*
+            * **Cuentas Completas Equivalentes ($9):** {flujo_completas}
+            * **Perfiles Individuales Vendidos:** {flujo_perfiles_ind} perfiles *(Equivale a {flujo_perfiles_ind/3:.1f} cuentas)*
             * **Ingreso Total:** ${flujo_ingreso:,.2f} USD
             * **Costo Operativo:** ${flujo_costo:,.2f} USD
             * **Rentabilidad:** ${(flujo_ingreso - flujo_costo):,.2f} USD
@@ -510,16 +530,14 @@ if password == CLAVE_MAESTRA:
         with col_b:
             st.markdown("### 🛜 Canal JumangisTV")
             st.markdown(f"""
-            * **Cuentas Totales Vendidas ($7):** {juman_cuentas} *(Vendido solo en cuenta completa)*
+            * **Cuentas Totales Vendidas ($7):** {juman_cuentas}
             * **Ingreso Total:** ${juman_ingreso:,.2f} USD
             * **Costo Operativo:** ${juman_costo:,.2f} USD
             * **Rentabilidad:** ${(juman_ingreso - juman_costo):,.2f} USD
             """)
 
         st.divider()
-
-        # Proyección Local en Bolívares
-        st.markdown(f"### 🇻🇪 Conversión Monetaria Nacional (Tasa: {tasa_dia} Bs/$)")
+        st.markdown(f"### 🇻🇪 Conversión Monetaria (Tasa: {tasa_dia} Bs/$)")
         c1, c2 = st.columns(2)
         c1.info(f"**Flujo de Caja Total Bruto:** {ingreso_total * tasa_dia:,.2f} Bs.")
         c2.success(f"**Utilidad Real en Bolívares:** {ganancia_total * tasa_dia:,.2f} Bs.")
