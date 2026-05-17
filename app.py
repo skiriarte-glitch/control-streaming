@@ -143,10 +143,9 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_prepagado)
-                link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                link_prepagado = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
-                st.markdown(f'<a href="{link_prepagado}" target="_self" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
     # ⏳ PENDIENTES POR RENOVAR (YA PAGARON)
@@ -192,10 +191,9 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_entrega_pendiente)
-                link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
-                st.markdown(f'<a href="{link_entrega}" target="_self" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Nuevos Datos de Acceso</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Nuevos Datos de Acceso</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
     # 3. 🚩 PAGOS PENDIENTES
@@ -229,10 +227,9 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_deudor)
-                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
-                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
     else:
         st.write("✅ Todo al día. Ningún cliente moroso.")
 
@@ -268,10 +265,9 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_preventivo)
-                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
-                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay vencimientos para hoy o las próximas 48 horas.")
 
@@ -322,10 +318,9 @@ if password == CLAVE_MAESTRA:
                 if not num.startswith("58") and num != "": num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_entrega)
-                link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
-                st.markdown(f'<a href="{link_entrega}" target="_self" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay membresías activas a largo plazo registradas.")
 
