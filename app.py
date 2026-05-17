@@ -351,13 +351,22 @@ if password == CLAVE_MAESTRA:
             st.write("No hay membresías activas a largo plazo registradas.")
 
         # =========================================================================
-        # 6. 📝 BASE DE DATOS EDITABLE 
+        # 6. 📝 BASE DE DATOS EDITABLE (INACTIVOS ORDENADOS AL FINAL)
         # =========================================================================
         st.divider()
         st.subheader("📝 Base de Datos Editable")
         st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente. **Para eliminar una fila, selecciónala desde el número gris a la izquierda y presiona Suprimir/Delete.**")
         
         df_editor = df.copy()
+        
+        # AJUSTE: Ordenamos el DataFrame para empujar a los inactivos/cancelados al final de la tabla
+        if 'estatus' in df_editor.columns:
+            df_editor['es_inactivo'] = df_editor['estatus'].str.lower().str.contains('inactivo|cancelado', na=False)
+            if 'vencimiento' in df_editor.columns:
+                df_editor = df_editor.sort_values(by=['es_inactivo', 'vencimiento'], ascending=[True, True]).reset_index(drop=True)
+            else:
+                df_editor = df_editor.sort_values(by=['es_inactivo'], ascending=[True]).reset_index(drop=True)
+            df_editor = df_editor.drop(columns=['es_inactivo'])
         
         columnas_a_desbloquear = ["clave", "telefono", "nombre", "id_cuenta", "estatus", "servicio"]
         for col in columnas_a_desbloquear:
@@ -395,7 +404,7 @@ if password == CLAVE_MAESTRA:
                 st.error(f"Hubo un error al guardar: {e}")
 
         # =========================================================================
-        # 7. ❌ CLIENTES INACTIVOS / NO RENOVARON (AL FINAL DEL PANEL DE GESTIÓN)
+        # 7. ❌ CLIENTES INACTIVOS / NO RENOVARON 
         # =========================================================================
         st.divider()
         st.markdown("### ❌ Clientes Inactivos / No Renovaron")
@@ -462,7 +471,6 @@ if password == CLAVE_MAESTRA:
                     flujo_perfiles_ind += 1
                     flujo_costo += 1.0  # $1 por perfil
                 elif precio > 0:
-                    # Margen por si hay algún precio mixto no estandarizado
                     perfiles_est = int(precio / 3) if precio >= 3 else 1
                     flujo_perfiles_ind += perfiles_est
                     flujo_costo += float(perfiles_est * 1.0)
