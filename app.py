@@ -6,7 +6,7 @@ import urllib.parse
 
 # Configuración del nombre en la pestaña del navegador
 st.set_page_config(page_title="Control Streaming", layout="wide")
-st.title("🎬 Sistema Control Streaming")
+st.title("🎬 Control Streaming")
 
 # --- CONTRASEÑA ---
 CLAVE_MAESTRA = "Z2599393F" 
@@ -99,12 +99,12 @@ if password == CLAVE_MAESTRA:
         # --- SECCIONES DE GESTIÓN ---
         if len(lista_prepagados) > 0:
             st.divider()
-            st.markdown("### ♻️ Prepagados por Actualizar")
+            st.markdown("### ✅ Prepagado")
             for item in lista_prepagados:
                 row, nombre_completo, primer_nombre = item
                 id_u = row.get('id_cuenta', 'S/D')
                 vence_dt = row['vencimiento']
-                with st.expander(f"♻️ PREPAGADO: {nombre_completo} - Cuenta: {id_u} - Vence: {vence_dt.strftime('%d-%m-%Y')}"):
+                with st.expander(f"✅ PREPAGADO: {nombre_completo} - Cuenta: {id_u} - Vence: {vence_dt.strftime('%d-%m-%Y')}"):
                     # Lógica de WhatsApp (Igual que antes)
                     msg = f"Hola {primer_nombre} 🫂\nRecarga procesada exitosamente..."
                     num = ''.join(filter(str.isdigit, str(row.get('telefono', ''))))
@@ -113,12 +113,12 @@ if password == CLAVE_MAESTRA:
 
         if len(lista_pendiente_renovar_pagados) > 0:
             st.divider()
-            st.markdown("### ⏳ Pendientes por Renovar (Ya Pagaron)")
+            st.markdown("### ⏳ Renovar")
             for item in lista_pendiente_renovar_pagados:
                 row, nombre_completo, primer_nombre = item
                 id_u = row.get('id_cuenta', 'S/D')
                 vence_dt = row['vencimiento']
-                with st.expander(f"⏳ PAGADO / POR RENOVAR: {nombre_completo} - Cuenta: {id_u}"):
+                with st.expander(f"⏳ RENOVAR: {nombre_completo} - Cuenta: {id_u}"):
                     msg = f"Hola {primer_nombre} 🫂\n¡Gracias por tu pago! Tu servicio ha sido renovado..."
                     num = ''.join(filter(str.isdigit, str(row.get('telefono', ''))))
                     if len(num) == 10: num = f"58{num}"
@@ -141,12 +141,12 @@ if password == CLAVE_MAESTRA:
         # --- SECCIÓN DE PAGOS PENDIENTES / VENCIDOS ---
         if len(lista_pagos_pendientes) > 0:
             st.divider()
-            st.markdown("### 🚨 Pagos Pendientes o Vencidos")
+            st.markdown("### 🚨 Pagos Pendientes")
             for item in lista_pagos_pendientes:
                 row, nombre_completo, primer_nombre = item
                 id_u = row.get('id_cuenta', 'S/D')
                 vence_dt = row['vencimiento']
-                with st.expander(f"🚨 MOROSO/PENDIENTE: {nombre_completo} - Cuenta: {id_u} - Venció: {vence_dt.strftime('%d-%m-%Y')}"):
+                with st.expander(f"🚨 PENDIENTE: {nombre_completo} - Cuenta: {id_u} - Venció: {vence_dt.strftime('%d-%m-%Y')}"):
                     msg = f"Hola {primer_nombre} 🚨\nTu servicio se encuentra vencido desde el {vence_dt.strftime('%d-%m-%Y')}. Por favor realiza el pago para mantener tu servicio activo."
                     num = ''.join(filter(str.isdigit, str(row.get('telefono', ''))))
                     if len(num) == 10: num = f"58{num}"
@@ -156,7 +156,7 @@ if password == CLAVE_MAESTRA:
         # Sección Activos (Ordenada)
         if len(lista_activos) > 0:
             st.divider()
-            st.markdown("### ✅ Activos")
+            st.markdown("### 🟢 Activos")
             lista_activos.sort(key=lambda x: x[3])
             for item in lista_activos:
                 row, nombre_completo, primer_nombre, _ = item
@@ -167,7 +167,7 @@ if password == CLAVE_MAESTRA:
 
         # --- EDITOR ---
         st.divider()
-        st.subheader("📝 Base de Datos Editable")
+        st.subheader("📝 Base de Datos")
         df_editor = df.copy()
         if 'estatus' in df_editor.columns:
             df_editor['es_inactivo'] = df_editor['estatus'].str.lower().str.contains('inactivo|cancelado', na=False)
@@ -203,7 +203,7 @@ if password == CLAVE_MAESTRA:
     # 📊 PESTAÑA 2: REPORTE FINANCIERO (CON GRÁFICO VISUAL)
     # =========================================================================
     with tab2:
-        st.subheader("📊 Reporte Financiero de Volumen Pagado")
+        st.subheader("📊 Reportes")
         
         flujo_cuentas_dict = {}
         juman_cuentas_dict = {}
@@ -268,9 +268,9 @@ if password == CLAVE_MAESTRA:
 
         col_a, col_b = st.columns(2)
         with col_a:
-            st.markdown(f"**🎬 Canal FlujoTV**\n\n* Cuentas: {flujo_completas + flujo_pantallas_acc}\n* Ingreso: ${flujo_ingreso:.2f}\n* Ganancia: ${flujo_ingreso - flujo_costo:.2f}")
+            st.markdown(f"**🎬 FlujoTV**\n\n* Cuentas: {flujo_completas + flujo_pantallas_acc}\n* Ingreso: ${flujo_ingreso:.2f}\n* Ganancia: ${flujo_ingreso - flujo_costo:.2f}")
         with col_b:
-            st.markdown(f"**🛜 Canal JumangisTV**\n\n* Cuentas: {juman_cuentas}\n* Ingreso: ${juman_ingreso:.2f}\n* Ganancia: ${juman_ingreso - juman_costo:.2f}")
+            st.markdown(f"**🎥 JumangisTV**\n\n* Cuentas: {juman_cuentas}\n* Ingreso: ${juman_ingreso:.2f}\n* Ganancia: ${juman_ingreso - juman_costo:.2f}")
 
         st.divider()
         st.info(f"**Flujo Bruto en Bolívares:** {ingreso_total * tasa_dia:,.2f} Bs.")
