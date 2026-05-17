@@ -58,17 +58,15 @@ if password == CLAVE_MAESTRA:
     lista_pagos_pendientes = []
     lista_proximos_vencer = []
     lista_activos = []
-    lista_inactivos = [] # NUEVA LISTA
+    lista_inactivos = [] 
 
     for index, row in clientes_activos.iterrows():
-        # Extracción del nombre completo y del primer nombre
         raw_nombre = row.get('nombre', '')
         nombre_completo = "Cliente" if pd.isna(raw_nombre) or str(raw_nombre).strip() == "" else str(raw_nombre).strip()
         primer_nombre = nombre_completo.split()[0] if nombre_completo != "Cliente" else "Cliente"
         
         estatus = str(row.get('estatus', '')).strip().lower()
         
-        # NUEVO AJUSTE: Filtramos primero a los inactivos/cancelados para sacarlos de los cobros
         if 'inactivo' in estatus or 'cancelado' in estatus:
             lista_inactivos.append((row, nombre_completo, primer_nombre))
             continue
@@ -80,19 +78,18 @@ if password == CLAVE_MAESTRA:
             
         fecha_vence = datetime(vence_dt.year, vence_dt.month, vence_dt.day)
         
-        # Lectura segura de los Meses Adelantados
         raw_meses = row.get('meses_adelanto', 0)
         try:
             meses_adelanto = 0 if pd.isna(raw_meses) or str(raw_meses).strip() == "" else int(float(raw_meses))
         except:
             meses_adelanto = 0
 
-        # === DISTRIBUCIÓN DE GRUPOS ESTRICTA MODIFICADA ===
+        # === DISTRIBUCIÓN DE GRUPOS (ACTUALIZADO PUNTO 3) ===
         if meses_adelanto > 0:
             lista_prepagados.append((row, nombre_completo, primer_nombre))
             
-        # Si el estatus es 'pagado' pero la fecha está vencida, vence hoy o dentro de 2 días
-        elif estatus == 'pagado' and (fecha_vence <= fecha_limite_cobro):
+        # Si el estatus es 'pagado', van a "Pendientes por Renovar" CUALQUIER SEA SU FECHA
+        elif estatus == 'pagado':
             lista_pendiente_renovar_pagados.append((row, nombre_completo, primer_nombre))
             
         elif estatus == 'pendiente' or (fecha_vence < fecha_hoy and estatus != 'pagado'):
@@ -102,7 +99,6 @@ if password == CLAVE_MAESTRA:
             lista_proximos_vencer.append((row, nombre_completo, primer_nombre))
             
         else:
-            # Añadimos la fecha_vence a la tupla para poder ordenarlos estrictamente luego
             lista_activos.append((row, nombre_completo, primer_nombre, fecha_vence))
 
     # =========================================================================
@@ -123,7 +119,6 @@ if password == CLAVE_MAESTRA:
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             meses_restantes = int(float(row.get('meses_adelanto', 0)))
 
-            # AJUSTE: Añadido "Cuenta: {id_u}" a la vista previa del menú
             with st.expander(f"♻️ PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} ({servicio}) - Cuenta: {id_u} - Vence: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
@@ -150,8 +145,12 @@ if password == CLAVE_MAESTRA:
                 
                 msg_prepagado += f"\n¡Disfruta de tus contenidos favoritos! 📩"
                 
-                num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58") and num != "": num = f"58{num}"
+                # AJUSTE WHATSAPP: Algoritmo Inteligente para Números Internacionales
+                num = str(row.get('telefono', '')).split('.')[0].strip()
+                num = ''.join(filter(str.isdigit, num)) # Quita signos raros
+                if num != "":
+                    if num.startswith("0"): num = num[1:] # Quita el 0 de Vzla
+                    if len(num) == 10: num = f"58{num}"   # Si es 10 digitos, asume Vzla
                 
                 texto_url = urllib.parse.quote(msg_prepagado)
                 link_prepagado = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
@@ -175,8 +174,7 @@ if password == CLAVE_MAESTRA:
             vence_dt = row['vencimiento']
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y %H:%M:%S')
 
-            # AJUSTE: Añadido "Cuenta: {id_u}" a la vista previa del menú
-            with st.expander(f"⏳ RECOBRADO / PENDIENTE RENOVAR: {nombre_completo} ({servicio}) - Cuenta: {id_u} - Fecha antigua: {fecha_vence_str}"):
+            with st.expander(f"⏳ RECOBRADO / PENDIENTE RENOVAR: {nombre_completo} ({servicio}) - Cuenta: {id_u} - Fecha guardada: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -199,8 +197,12 @@ if password == CLAVE_MAESTRA:
                     
                 msg_entrega_pendiente += f"\n¡Gracias por tu fidelidad! Quedo a la orden. 📩"
                 
-                num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58") and num != "": num = f"58{num}"
+                # AJUSTE WHATSAPP: Algoritmo Inteligente para Números Internacionales
+                num = str(row.get('telefono', '')).split('.')[0].strip()
+                num = ''.join(filter(str.isdigit, num))
+                if num != "":
+                    if num.startswith("0"): num = num[1:]
+                    if len(num) == 10: num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_entrega_pendiente)
                 link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
@@ -235,8 +237,13 @@ if password == CLAVE_MAESTRA:
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
                 )
-                num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58") and num != "": num = f"58{num}"
+                
+                # AJUSTE WHATSAPP: Algoritmo Inteligente para Números Internacionales
+                num = str(row.get('telefono', '')).split('.')[0].strip()
+                num = ''.join(filter(str.isdigit, num))
+                if num != "":
+                    if num.startswith("0"): num = num[1:]
+                    if len(num) == 10: num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_deudor)
                 link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
@@ -273,8 +280,13 @@ if password == CLAVE_MAESTRA:
                     f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
                     f"Quedo atenta ante cualquier duda ✨"
                 )
-                num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58") and num != "": num = f"58{num}"
+                
+                # AJUSTE WHATSAPP: Algoritmo Inteligente para Números Internacionales
+                num = str(row.get('telefono', '')).split('.')[0].strip()
+                num = ''.join(filter(str.isdigit, num))
+                if num != "":
+                    if num.startswith("0"): num = num[1:]
+                    if len(num) == 10: num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_preventivo)
                 link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
@@ -290,11 +302,10 @@ if password == CLAVE_MAESTRA:
     st.markdown("### ✅ Activos")
     
     if len(lista_activos) > 0:
-        # AJUSTE: Forzamos el orden ascendente estricto por la fecha de vencimiento (del más cercano al más lejano)
         lista_activos.sort(key=lambda x: x[3])
         
         for item in lista_activos:
-            row, nombre_completo, primer_nombre, _ = item  # El "_" ignora la variable de la fecha cruda que usamos solo para ordenar
+            row, nombre_completo, primer_nombre, _ = item
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
             clave = row.get('clave', 'S/D')
@@ -302,9 +313,7 @@ if password == CLAVE_MAESTRA:
             vence_dt = row['vencimiento']
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             
-            badge_estado = " (Esperando Grupo)" if str(row.get('estatus', '')).lower() == 'pagado' else ""
-
-            with st.expander(f"🟢 ACTIVO{badge_estado}: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
+            with st.expander(f"🟢 ACTIVO: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -329,8 +338,12 @@ if password == CLAVE_MAESTRA:
                 
                 msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
                 
-                num = str(row.get('telefono', '58')).split('.')[0].strip()
-                if not num.startswith("58") and num != "": num = f"58{num}"
+                # AJUSTE WHATSAPP: Algoritmo Inteligente para Números Internacionales
+                num = str(row.get('telefono', '')).split('.')[0].strip()
+                num = ''.join(filter(str.isdigit, num))
+                if num != "":
+                    if num.startswith("0"): num = num[1:]
+                    if len(num) == 10: num = f"58{num}"
                 
                 texto_url = urllib.parse.quote(msg_entrega)
                 link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
@@ -340,29 +353,7 @@ if password == CLAVE_MAESTRA:
         st.write("No hay membresías activas a largo plazo registradas.")
 
     # =========================================================================
-    # 6. ❌ CLIENTES INACTIVOS (NUEVA SECCIÓN)
-    # =========================================================================
-    st.divider()
-    st.markdown("### ❌ Clientes Inactivos / No Renovaron")
-    
-    if len(lista_inactivos) > 0:
-        st.write("Clientes marcados como inactivos. Conservan su usuario registrado por si regresan.")
-        for item in lista_inactivos:
-            row, nombre_completo, primer_nombre = item
-            servicio = str(row.get('servicio', 'S/D')).strip()
-            id_u = row.get('id_cuenta', 'S/D')
-            vence_dt = row.get('vencimiento', pd.NaT)
-            fecha_vence_str = vence_dt.strftime('%d-%m-%Y') if pd.notna(vence_dt) else "Fecha desconocida"
-            
-            with st.expander(f"❌ INACTIVO: {nombre_completo} ({servicio}) - Última cuenta: {id_u} - Venció: {fecha_vence_str}"):
-                st.write(f"**Último Usuario:** `{id_u}`")
-                st.write(f"**Teléfono guardado:** `{row.get('telefono', 'S/D')}`")
-                st.write(f"**Fecha de vencimiento antigua:** {fecha_vence_str}")
-    else:
-        st.write("No hay clientes marcados como inactivos en la base de datos.")
-
-    # =========================================================================
-    # 7. 📝 BASE DE DATOS EDITABLE 
+    # 6. 📝 BASE DE DATOS EDITABLE (MOVADA ARRIBA DE LOS INACTIVOS)
     # =========================================================================
     st.divider()
     st.subheader("📝 Base de Datos Editable")
@@ -404,6 +395,28 @@ if password == CLAVE_MAESTRA:
             st.rerun()
         except Exception as e:
             st.error(f"Hubo un error al guardar: {e}")
+
+    # =========================================================================
+    # 7. ❌ CLIENTES INACTIVOS / NO RENOVARON (MOVIDA AL FINAL)
+    # =========================================================================
+    st.divider()
+    st.markdown("### ❌ Clientes Inactivos / No Renovaron")
+    
+    if len(lista_inactivos) > 0:
+        st.write("Clientes marcados como inactivos. Conservan su usuario registrado por si regresan.")
+        for item in lista_inactivos:
+            row, nombre_completo, primer_nombre = item
+            servicio = str(row.get('servicio', 'S/D')).strip()
+            id_u = row.get('id_cuenta', 'S/D')
+            vence_dt = row.get('vencimiento', pd.NaT)
+            fecha_vence_str = vence_dt.strftime('%d-%m-%Y') if pd.notna(vence_dt) else "Fecha desconocida"
+            
+            with st.expander(f"❌ INACTIVO: {nombre_completo} ({servicio}) - Última cuenta: {id_u} - Venció: {fecha_vence_str}"):
+                st.write(f"**Último Usuario:** `{id_u}`")
+                st.write(f"**Teléfono guardado:** `{row.get('telefono', 'S/D')}`")
+                st.write(f"**Fecha de vencimiento antigua:** {fecha_vence_str}")
+    else:
+        st.write("No hay clientes marcados como inactivos en la base de datos.")
 
 else:
     st.info("Introduce la contraseña para gestionar el sistema.")
