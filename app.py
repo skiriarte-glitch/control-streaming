@@ -14,7 +14,9 @@ CLAVE_MAESTRA = "Prueba123"
 # Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-df = conn.read()
+# AJUSTE: ttl=0 obliga a la app a leer datos en tiempo real desde Google Sheets sin usar caché vieja
+df = conn.read(ttl=0)
+
 # Limpieza de nombres de columnas
 df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c in df.columns]
 
@@ -183,7 +185,7 @@ if password == CLAVE_MAESTRA:
                 if "jumangistv" in servicio.lower():
                     msg_entrega_pendiente += f"🛜Host/URL: http://jumangis.cloud:2082\n"
                 if "flujotv" in servicio.lower():
-                    msg_entrega_pendiente += f"🚯 PIN contenido adulto: 1234\n"
+                    msg_entrega_pendiente += f" PIN contenido adulto: 1234\n"
                     
                 msg_entrega_pendiente += f"\n¡Gracias por tu fidelidad! Quedo a la orden. 📩"
                 
@@ -354,9 +356,11 @@ if password == CLAVE_MAESTRA:
                 fechas_convertidas = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
                 df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_convertidas]
             
+            # AJUSTE CRÍTICO: Limpiamos la caché global de Streamlit antes de enviar los datos para evitar que Google rechace la firma JWT vieja
+            st.cache_data.clear()
+            
             conn.update(data=df_editado)
             st.success("¡Datos guardados con éxito! 🚀 La pantalla se actualizará en breve...")
-            st.cache_data.clear()
             st.rerun()
         except Exception as e:
             st.error(f"Hubo un error al guardar: {e}")
