@@ -148,7 +148,7 @@ if password == CLAVE_MAESTRA:
                 st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
-    # 新 [NUEVA SECCIÓN] ⏳ PENDIENTES POR RENOVAR (YA PAGARON)
+    # ⏳ PENDIENTES POR RENOVAR (YA PAGARON)
     # =========================================================================
     if len(lista_pendiente_renovar_pagados) > 0:
         st.divider()
@@ -325,15 +325,24 @@ if password == CLAVE_MAESTRA:
         st.write("No hay membresías activas a largo plazo registradas.")
 
     # =========================================================================
-    # 6. 📝 BASE DE DATOS EDITABLE
+    # 6. 📝 BASE DE DATOS EDITABLE (OPTIMIZADA PARA PERMITIR EDICIONES DE CLAVE)
     # =========================================================================
     st.divider()
     st.subheader("📝 Base de Datos Editable")
     st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente.")
     
-    df_editor = df.fillna('').copy()
+    # Preparamos el editor directamente sobre los tipos originales del dataframe para evitar bloqueos de celdas
+    df_editor = df.copy()
+    
+    # Convertimos los nulos a texto vacío de forma controlada por columna para no alterar el comportamiento de edición de strings
+    columnas_texto = ['estatus', 'nombre', 'id_cuenta', 'clave', 'servicio', 'telefono']
+    for col in columnas_texto:
+        if col in df_editor.columns:
+            df_editor[col] = df_editor[col].fillna('').astype(str)
+            
+    # Formateamos visualmente la fecha en texto, preservando el índice original para evitar bloqueos
     if 'vencimiento' in df_editor.columns:
-        df_editor['vencimiento'] = pd.to_datetime(df['vencimiento'], errors='coerce').dt.strftime('%d/%m/%Y %H:%M:%S').fillna('')
+        df_editor['vencimiento'] = df_editor['vencimiento'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('')
     
     df_editado = st.data_editor(df_editor, num_rows="dynamic", use_container_width=True)
     
@@ -343,6 +352,7 @@ if password == CLAVE_MAESTRA:
                 fechas_convertidas = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
                 df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_convertidas]
             
+            # Limpiamos tipos antes de subir para asegurar compatibilidad en Google Sheets
             conn.update(data=df_editado)
             st.success("¡Datos guardados con éxito! 🚀 La pantalla se actualizará en breve...")
             st.cache_data.clear()
