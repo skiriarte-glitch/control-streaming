@@ -158,12 +158,11 @@ if password == CLAVE_MAESTRA:
                 st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
-    # ⏳ PENDIENTES POR RENOVAR (YA PAGARON)
+    # ⏳ PENDIENTES POR RENOVAR
     # =========================================================================
     if len(lista_pendiente_renovar_pagados) > 0:
         st.divider()
-        st.markdown("### ⏳ Pendientes por Renovar (Ya Pagaron)")
-        st.write("Clientes que ya pagaron su renovación pero estás esperando para actualizar sus datos de acceso o cambiar su fecha de vencimiento.")
+        st.markdown("### ⏳ Pendientes por Renovar")
         
         for item in lista_pendiente_renovar_pagados:
             row, nombre_completo, primer_nombre = item
@@ -174,7 +173,7 @@ if password == CLAVE_MAESTRA:
             vence_dt = row['vencimiento']
             fecha_vence_str = vence_dt.strftime('%d-%m-%Y %H:%M:%S')
 
-            with st.expander(f"⏳ RECOBRADO / PENDIENTE RENOVAR: {nombre_completo} ({servicio}) - Cuenta: {id_u} - Fecha guardada: {fecha_vence_str}"):
+            with st.expander(f"⏳ PENDIENTE RENOVAR: {nombre_completo} ({servicio}) - Cuenta: {id_u} - Fecha guardada: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
