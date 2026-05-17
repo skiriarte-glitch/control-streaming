@@ -150,11 +150,11 @@ if password == CLAVE_MAESTRA:
                 st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
-    # ⏳ PENDIENTES POR RENOVAR (YA PAGARON)
+    # ⏳ PENDIENTES POR RENOVAR
     # =========================================================================
     if len(lista_pendiente_renovar_pagados) > 0:
         st.divider()
-        st.markdown("### ⏳ Pendientes por Renovar (Ya Pagaron)")
+        st.markdown("### ⏳ Pendientes por Renovar")
         st.write("Clientes que ya pagaron su renovación pero estás esperando para actualizar sus datos de acceso o cambiar su fecha de vencimiento.")
         
         for item in lista_pendiente_renovar_pagados:
