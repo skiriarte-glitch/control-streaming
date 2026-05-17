@@ -127,7 +127,7 @@ if password == CLAVE_MAESTRA:
         # --- SECCIÓN DE PRÓXIMOS A VENCER (HOY + 2 DÍAS) ---
         if len(lista_proximos_vencer) > 0:
             st.divider()
-            st.markdown("### ⚠️ Próximos a Vencer (Cobrar en 2 días)")
+            st.markdown("### ⚠️ Próximos a Vencer")
             for item in lista_proximos_vencer:
                 row, nombre_completo, primer_nombre = item
                 id_u = row.get('id_cuenta', 'S/D')
