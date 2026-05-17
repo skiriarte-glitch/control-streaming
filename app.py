@@ -145,7 +145,8 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_prepagado)
                 link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
+                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
+                st.markdown(f'<a href="{link_prepagado}" target="_self" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
     # ⏳ PENDIENTES POR RENOVAR (YA PAGARON)
@@ -193,7 +194,8 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_entrega_pendiente)
                 link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Nuevos Datos de Acceso</button></a>', unsafe_allow_html=True)
+                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
+                st.markdown(f'<a href="{link_entrega}" target="_self" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Nuevos Datos de Acceso</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
     # 3. 🚩 PAGOS PENDIENTES
@@ -229,7 +231,8 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_deudor)
                 link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
+                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
+                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FF4B4B; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio de Deuda</button></a>', unsafe_allow_html=True)
     else:
         st.write("✅ Todo al día. Ningún cliente moroso.")
 
@@ -267,7 +270,8 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_preventivo)
                 link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
+                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
+                st.markdown(f'<a href="{link_cobro}" target="_self" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay vencimientos para hoy o las próximas 48 horas.")
 
@@ -320,23 +324,22 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_entrega)
                 link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
+                # AJUSTE: target="_self" para evitar abrir pestañas nuevas repetidamente
+                st.markdown(f'<a href="{link_entrega}" target="_self" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
     else:
         st.write("No hay membresías activas a largo plazo registradas.")
 
     # =========================================================================
-    # 6. 📝 BASE DE DATOS EDITABLE (CORREGIDA PARA INTEGRACIÓN PURA DE LA API)
+    # 6. 📝 BASE DE DATOS EDITABLE 
     # =========================================================================
     st.divider()
     st.subheader("📝 Base de Datos Editable")
     st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente.")
     
-    # Creamos una copia limpia para visualizar la fecha correctamente sin mutar los tipos originales del DataFrame
     df_editor = df.copy()
     if 'vencimiento' in df_editor.columns:
         df_editor['vencimiento'] = df_editor['vencimiento'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('')
     
-    # Forzamos que las columnas se interpreten como campos de Texto directamente en la interfaz del editor
     df_editado = st.data_editor(
         df_editor, 
         num_rows="dynamic", 
@@ -356,7 +359,6 @@ if password == CLAVE_MAESTRA:
                 fechas_convertidas = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
                 df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_convertidas]
             
-            # Guardamos los datos directamente respetando los nulos originales del DataFrame limpio
             conn.update(data=df_editado)
             st.success("¡Datos guardados con éxito! 🚀 La pantalla se actualizará en breve...")
             st.cache_data.clear()
