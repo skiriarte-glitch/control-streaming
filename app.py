@@ -24,9 +24,10 @@ if password == CLAVE_MAESTRA:
     tasa_dia = st.sidebar.number_input("Tasa del día (Bs/$)", min_value=1.0, value=660.0, step=1.0)
     
     ahora = datetime.now()
-    fecha_hoy = datetime(ahora.year, ahora.month, ahora.day, ahora.hour, ahora.minute, ahora.second)
-    
-    # Preparar el DataFrame convirtiendo fechas con formato mixto (conservando horas)
+    fecha_hoy = datetime(ahora.year, ahora.month, ahora.day)
+    fecha_limite_cobro = fecha_hoy + timedelta(days=2)
+
+    # Preparar el DataFrame convirtiendo fechas con formato mixto
     if 'vencimiento' in df.columns:
         df['vencimiento'] = pd.to_datetime(df['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
         df = df.sort_values(by='vencimiento')
@@ -35,31 +36,26 @@ if password == CLAVE_MAESTRA:
     # 1. 💟 PERFILES DISPONIBLES
     # =========================================================================
     st.markdown("### 💟 Perfiles Disponibles")
-    
-    # Un perfil está disponible si el estatus dice libre/vacante/disponible O si el nombre está completamente vacío
     condicion_libre = pd.Series(False, index=df.index)
-    if 'nombre' in df.columns:
-        condicion_libre = (df['nombre'].isna()) | (df['nombre'].str.strip() == "")
     if 'estatus' in df.columns:
-        condicion_libre = condicion_libre | (df['estatus'].str.lower().str.contains('libre|vacante|disponible', na=False))
+        # Se incluye la palabra 'disponible' o si el nombre está vacío/blanco
+        condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante|disponible', na=False)) | \
+                          (df['nombre'].str.lower().str.contains('disponible|libre|vacante', na=False)) | \
+                          (df['nombre'].isna()) | (df['nombre'].str.strip() == "")
+        disponibles = df[condicion_libre]
         
-    disponibles = df[condicion_libre]
-    
-    if not disponibles.empty:
-        for idx, row in disponibles.iterrows():
-            st.success(f"✨ **{row.get('servicio', 'Servicio')}** disponible en cuenta: `{row.get('id_cuenta', 'S/D')}`")
-    else:
-        st.write("No tienes cupos libres por ahora.")
+        if not disponibles.empty:
+            for idx, row in disponibles.iterrows():
+                st.success(f"✨ **{row.get('servicio', 'Servicio')}** disponible en cuenta: `{row.get('id_cuenta', 'S/D')}`")
+        else:
+            st.write("No tienes cupos libres por ahora.")
 
     # Listas para organizar los siguientes grupos
     clientes_activos = df[~condicion_libre].copy()
-    lista_prepagados_standby = []
+    lista_prepagados = []
     lista_pagos_pendientes = []
     lista_proximos_vencer = []
     lista_activos = []
-
-    # Fecha límite para alertas de cobro (48 horas en el futuro)
-    fecha_limite_cobro = ahora + timedelta(days=2)
 
     for index, row in clientes_activos.iterrows():
         # Extracción del nombre completo y del primer nombre
@@ -72,7 +68,9 @@ if password == CLAVE_MAESTRA:
         
         if pd.isna(vence_dt): 
             continue
-
+            
+        fecha_vence = datetime(vence_dt.year, vence_dt.month, vence_dt.day)
+        
         # Lectura segura de los Meses Adelantados
         raw_meses = row.get('meses_adelanto', 0)
         try:
@@ -80,41 +78,38 @@ if password == CLAVE_MAESTRA:
         except:
             meses_adelanto = 0
 
-        # === DISTRIBUCIÓN DE GRUPOS ESTRICTA MODIFICADA ===
-        # Si ya pagó (estatus == pagado) o tiene meses a favor, va directo a Standby/Prepagados para no cobrarle de más
-        if estatus == 'pagado' or meses_adelanto > 0:
-            lista_prepagados_standby.append((row, nombre_completo, primer_nombre))
+        # === DISTRIBUCIÓN DE GRUPOS ESTRICTA ORIGINAL RESTAURADA ===
+        if meses_adelanto > 0:
+            lista_prepagados.append((row, nombre_completo, primer_nombre))
             
-        elif estatus == 'pendiente' or (vence_dt < ahora and estatus != 'pagado'):
+        elif estatus == 'pendiente' or (fecha_vence < fecha_hoy and estatus != 'pagado'):
             lista_pagos_pendientes.append((row, nombre_completo, primer_nombre))
             
-        elif estatus != 'pagado' and (ahora <= vence_dt <= fecha_limite_cobro):
+        elif estatus != 'pagado' and (fecha_hoy <= fecha_vence <= fecha_limite_cobro):
             lista_proximos_vencer.append((row, nombre_completo, primer_nombre))
             
         else:
             lista_activos.append((row, nombre_completo, primer_nombre))
 
     # =========================================================================
-    # 2. ♻️ PREPAGADOS / PENDIENTES POR RENOVAR (STANDBY)
+    # 2. ♻️ PREPAGADOS POR ACTUALIZAR
     # =========================================================================
-    if len(lista_prepagados_standby) > 0:
+    if len(lista_prepagados) > 0:
         st.divider()
-        st.markdown("### ♻️ Prepagados / Pendientes por Renovar")
-        st.write("Clientes que ya pagaron (o tienen meses a favor) pero su cuenta está en espera de renovación física o actualización de datos.")
+        st.markdown("### ♻️ Prepagados por Actualizar")
+        st.write("Clientes que pagaron por adelantado. Pásales sus claves nuevas, cambia su fecha y bájales 1 mes de adelanto en la tabla cuando corresponda.")
         
-        for item in lista_prepagados_standby:
+        for item in lista_prepagados:
             row, nombre_completo, primer_nombre = item
             servicio = str(row.get('servicio', 'Servicio')).strip()
             id_u = row.get('id_cuenta', 'S/D')
             clave = row.get('clave', 'S/D')
             precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
             vence_dt = row['vencimiento']
-            fecha_vence_str = vence_dt.strftime('%d-%m-%Y %H:%M:%S')
-            meses_restantes = int(float(row.get('meses_adelanto', 0))) if not pd.isna(row.get('meses_adelanto', 0)) and str(row.get('meses_adelanto', '')).strip() != "" else 0
+            fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+            meses_restantes = int(float(row.get('meses_adelanto', 0)))
 
-            etiqueta = f"⏳ EN ESPERA (YA PAGÓ):" if str(row.get('estatus', '')).lower() == 'pagado' else f"♻️ PREPAGADO ({meses_restantes} m a favor):"
-
-            with st.expander(f"{etiqueta} {nombre_completo} ({servicio}) - Fecha actual en tabla: {fecha_vence_str}"):
+            with st.expander(f"♻️ PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 conexiones = "1"
                 if "flujotv" in servicio.lower():
                     if precio == 6: conexiones = "2"
@@ -127,7 +122,7 @@ if password == CLAVE_MAESTRA:
                     f"Tu recarga ha sido procesada exitosamente. ✨\n"
                     f"Aquí tienes los datos de acceso para que sigas disfrutando de tu servicio.\n\n"
                     f"⚡️Conexiones: {conexiones}\n"
-                    f"📆 Próximo corte: {vence_dt.strftime('%d-%m-%Y')}\n\n"
+                    f"📆 Próximo corte: {fecha_vence_str}\n\n"
                 )
                 
                 if "jumangistv" in servicio.lower():
@@ -146,7 +141,7 @@ if password == CLAVE_MAESTRA:
                 texto_url = urllib.parse.quote(msg_prepagado)
                 link_prepagado = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
                 
-                st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves Nuevas</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
 
     # =========================================================================
     # 3. 🚩 PAGOS PENDIENTES
@@ -160,10 +155,10 @@ if password == CLAVE_MAESTRA:
             servicio = str(row.get('servicio', 'Servicio')).strip()
             precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
             vence_dt = row['vencimiento']
-            fecha_vence_str = vence_dt.strftime('%d-%m-%Y %H:%M:%S')
+            fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
             monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
             
-            with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre_completo} ({servicio}) - Venció: {fecha_vence_str}"):
+            with st.expander(f"🔴 SERVICIO RENOVADO / DEBE PAGO: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
                 msg_deudor = (
                     f"Hola {primer_nombre} 🫂\n"
                     f"Te escribo para recordarte que tenemos pendiente el pago de la renovación.\n\n"
@@ -198,4 +193,111 @@ if password == CLAVE_MAESTRA:
             servicio = str(row.get('servicio', 'Servicio')).strip()
             precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
             vence_dt = row['vencimiento']
-            fecha_vence_str = vence_dt
+            fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+            monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            with st.expander(f"🟡 AVISAR RENOVAR: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
+                msg_preventivo = (
+                    f"Hola {primer_nombre} 🫂\n\n"
+                    f"Ya está disponible la renovación de tu suscripción.\n\n"
+                    f"Si deseas renovar, te dejo los datos de pago.\n\n"
+                    f"Bancamiga\n"
+                    f"13024234\n"
+                    f"04246379018\n"
+                    f"Concepto en *BLANCO* o *PAGO*\n"
+                    f"{monto_bs} Bs.\n\n"
+                    f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
+                    f"Quedo atenta ante cualquier duda ✨"
+                )
+                num = str(row.get('telefono', '58')).split('.')[0].strip()
+                if not num.startswith("58") and num != "": num = f"58{num}"
+                
+                texto_url = urllib.parse.quote(msg_preventivo)
+                link_cobro = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                
+                st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFAA00; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Mensaje de Cobro Standard</button></a>', unsafe_allow_html=True)
+    else:
+        st.write("No hay vencimientos para hoy o las próximas 48 horas.")
+
+    # =========================================================================
+    # 5. ✅ ACTIVOS
+    # =========================================================================
+    st.divider()
+    st.markdown("### ✅ Activos")
+    
+    if len(lista_activos) > 0:
+        for item in lista_activos:
+            row, nombre_completo, primer_nombre = item
+            servicio = str(row.get('servicio', 'Servicio')).strip()
+            id_u = row.get('id_cuenta', 'S/D')
+            clave = row.get('clave', 'S/D')
+            precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
+            vence_dt = row['vencimiento']
+            fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+            
+            badge_estado = " (Esperando Grupo)" if str(row.get('estatus', '')).lower() == 'pagado' else ""
+
+            with st.expander(f"🟢 ACTIVO{badge_estado}: {nombre_completo} ({servicio}) - Vence: {fecha_vence_str}"):
+                conexiones = "1"
+                if "flujotv" in servicio.lower():
+                    if precio == 6: conexiones = "2"
+                    elif precio >= 9: conexiones = "3"
+                elif "jumangistv" in servicio.lower():
+                    conexiones = "3"
+
+                msg_entrega = (
+                    f"✨ Aquí están tus datos de acceso. No los compartas con nadie. "
+                    f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.\n\n"
+                    f"⚡️Conexiones: {conexiones}\n"
+                    f"📆 Próxima renovación: {fecha_vence_str}\n\n"
+                )
+                
+                if "jumangistv" in servicio.lower():
+                    msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082\n"
+                
+                msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
+                
+                if "flujotv" in servicio.lower():
+                    msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
+                
+                msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
+                
+                num = str(row.get('telefono', '58')).split('.')[0].strip()
+                if not num.startswith("58") and num != "": num = f"58{num}"
+                
+                texto_url = urllib.parse.quote(msg_entrega)
+                link_entrega = f"https://web.whatsapp.com/send?phone={num}&text={texto_url}"
+                
+                st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
+    else:
+        st.write("No hay membresías activas a largo plazo registradas.")
+
+    # =========================================================================
+    # 6. 📝 BASE DE DATOS EDITABLE (RESTAURADA Y OPTIMIZADA SIN BLOQUEOS)
+    # =========================================================================
+    st.divider()
+    st.subheader("📝 Base de Datos Editable")
+    st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente.")
+    
+    # Rellenamos los valores vacíos con texto vacío para que Streamlit los asuma editables por defecto
+    df_editor = df.fillna('').copy()
+    if 'vencimiento' in df_editor.columns:
+        df_editor['vencimiento'] = pd.to_datetime(df['vencimiento'], errors='coerce').dt.strftime('%d/%m/%Y %H:%M:%S').fillna('')
+    
+    df_editado = st.data_editor(df_editor, num_rows="dynamic", use_container_width=True)
+    
+    if st.button("💾 Guardar Cambios en Google Sheets"):
+        try:
+            if 'vencimiento' in df_editado.columns:
+                fechas_convertidas = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
+                df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_convertidas]
+            
+            conn.update(data=df_editado)
+            st.success("¡Datos guardados con éxito! 🚀 La pantalla se actualizará en breve...")
+            st.cache_data.clear()
+            st.rerun()
+        except Exception as e:
+            st.error(f"Hubo un error al guardar: {e}")
+
+else:
+    st.info("Introduce la contraseña para gestionar el sistema.")
