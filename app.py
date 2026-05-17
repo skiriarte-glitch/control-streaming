@@ -124,6 +124,34 @@ if password == CLAVE_MAESTRA:
                     if len(num) == 10: num = f"58{num}"
                     st.markdown(f'<a href="https://api.whatsapp.com/send?phone={num}&text={urllib.parse.quote(msg)}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Nuevos Datos</button></a>', unsafe_allow_html=True)
 
+        # --- SECCIÓN DE PRÓXIMOS A VENCER (HOY + 2 DÍAS) ---
+        if len(lista_proximos_vencer) > 0:
+            st.divider()
+            st.markdown("### ⚠️ Próximos a Vencer (Cobrar en 2 días)")
+            for item in lista_proximos_vencer:
+                row, nombre_completo, primer_nombre = item
+                id_u = row.get('id_cuenta', 'S/D')
+                vence_dt = row['vencimiento']
+                with st.expander(f"⚠️ PRÓXIMO A VENCER: {nombre_completo} - Cuenta: {id_u} - Vence: {vence_dt.strftime('%d-%m-%Y')}"):
+                    msg = f"Hola {primer_nombre} 🫂\nTe recordamos que tu servicio vence el {vence_dt.strftime('%d-%m-%Y')}. Puedes ir realizando tu pago para evitar interrupciones."
+                    num = ''.join(filter(str.isdigit, str(row.get('telefono', ''))))
+                    if len(num) == 10: num = f"58{num}"
+                    st.markdown(f'<a href="https://api.whatsapp.com/send?phone={num}&text={urllib.parse.quote(msg)}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFC107; color:black; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio</button></a>', unsafe_allow_html=True)
+
+        # --- SECCIÓN DE PAGOS PENDIENTES / VENCIDOS ---
+        if len(lista_pagos_pendientes) > 0:
+            st.divider()
+            st.markdown("### 🚨 Pagos Pendientes o Vencidos")
+            for item in lista_pagos_pendientes:
+                row, nombre_completo, primer_nombre = item
+                id_u = row.get('id_cuenta', 'S/D')
+                vence_dt = row['vencimiento']
+                with st.expander(f"🚨 MOROSO/PENDIENTE: {nombre_completo} - Cuenta: {id_u} - Venció: {vence_dt.strftime('%d-%m-%Y')}"):
+                    msg = f"Hola {primer_nombre} 🚨\nTu servicio se encuentra vencido desde el {vence_dt.strftime('%d-%m-%Y')}. Por favor realiza el pago para mantener tu servicio activo."
+                    num = ''.join(filter(str.isdigit, str(row.get('telefono', ''))))
+                    if len(num) == 10: num = f"58{num}"
+                    st.markdown(f'<a href="https://api.whatsapp.com/send?phone={num}&text={urllib.parse.quote(msg)}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#DC3545; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🛑 Enviar Aviso de Corte</button></a>', unsafe_allow_html=True)
+        
         # (Secciones de Pagos Pendientes y Próximos a Vencer omitidas por brevedad pero se mantienen idénticas en tu archivo real)
         # Sección Activos (Ordenada)
         if len(lista_activos) > 0:
