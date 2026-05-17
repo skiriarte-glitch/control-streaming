@@ -298,7 +298,7 @@ if password == CLAVE_MAESTRA:
                 # AJUSTE: Guardamos de vuelta en Google Sheets con su hora correspondiente
                 df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_convertidas]
             
-            conn.update(data=df_editado)
+            conn.update(spreadsheet="https://docs.google.com/spreadsheets/d/185i9CPA-e3uTvmEBKG8asklwhoPtsFf0fQsShtGiFfE/edit?gid=0#gid=0", data=df_editado)
             st.success("¡Datos guardados con éxito! 🚀 La pantalla se actualizará en breve...")
             st.cache_data.clear()
             st.rerun()
