@@ -9,7 +9,7 @@ st.set_page_config(page_title="Control Streaming", layout="wide")
 st.title("🎬 Sistema Control Streaming")
 
 # --- CONTRASEÑA ---
-CLAVE_MAESTRA = "Prueba123" 
+CLAVE_MAESTRA = "Z2599393F" 
 
 # Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -39,9 +39,9 @@ if password == CLAVE_MAESTRA:
 
     with tab1:
         # =========================================================================
-        # 1. 💟 PERFILES DISPONIBLES
+        # 1. 🚦 PERFILES DISPONIBLES
         # =========================================================================
-        st.markdown("### 💟 Perfiles Disponibles")
+        st.markdown("### 🚦 Perfiles Disponibles")
         condicion_libre = pd.Series(False, index=df.index)
         if 'estatus' in df.columns:
             condicion_libre = (df['estatus'].str.lower().str.contains('libre|vacante|disponible', na=False)) | \
