@@ -14,8 +14,8 @@ CLAVE_MAESTRA = "Prueba123"
 # Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# AJUSTE: ttl=0 obliga a la app a leer datos en tiempo real desde Google Sheets sin usar caché vieja
-df = conn.read(ttl=0)
+# ttl="1m" mantiene la conexión estable y evita bloqueos de Google
+df = conn.read(ttl="1m")
 
 # Limpieza de nombres de columnas
 df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c in df.columns]
@@ -185,7 +185,7 @@ if password == CLAVE_MAESTRA:
                 if "jumangistv" in servicio.lower():
                     msg_entrega_pendiente += f"🛜Host/URL: http://jumangis.cloud:2082\n"
                 if "flujotv" in servicio.lower():
-                    msg_entrega_pendiente += f" PIN contenido adulto: 1234\n"
+                    msg_entrega_pendiente += f" 👤 PIN contenido adulto: 1234\n"
                     
                 msg_entrega_pendiente += f"\n¡Gracias por tu fidelidad! Quedo a la orden. 📩"
                 
@@ -327,13 +327,21 @@ if password == CLAVE_MAESTRA:
         st.write("No hay membresías activas a largo plazo registradas.")
 
     # =========================================================================
-    # 6. 📝 BASE DE DATOS EDITABLE 
+    # 6. 📝 BASE DE DATOS EDITABLE (COLUMNAS DE TEXTO DESBLOQUEADAS DEFINITIVAMENTE)
     # =========================================================================
     st.divider()
     st.subheader("📝 Base de Datos Editable")
     st.write("Modifica el estatus, actualiza fechas o administra adelantos directamente.")
     
     df_editor = df.copy()
+    
+    # AJUSTE QUIRÚRGICO: Forzamos a que las columnas críticas sean tratadas como strings limpios antes de entrar al componente
+    columnas_a_desbloquear = ["clave", "telefono", "nombre", "id_cuenta", "estatus", "servicio"]
+    for col in columnas_a_desbloquear:
+        if col in df_editor.columns:
+            # Reemplazamos nulos o None visuales por texto en blanco y nos aseguramos de que no sean numéricos puros para el editor
+            df_editor[col] = df_editor[col].fillna('').astype(str).replace('nan', '')
+            
     if 'vencimiento' in df_editor.columns:
         df_editor['vencimiento'] = df_editor['vencimiento'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('')
     
@@ -342,7 +350,7 @@ if password == CLAVE_MAESTRA:
         num_rows="dynamic", 
         use_container_width=True,
         column_config={
-            "clave": st.column_config.TextColumn("clave"),
+            "clave": st.column_config.TextColumn("clave", help="Clave de acceso (puedes usar números y letras)"),
             "telefono": st.column_config.TextColumn("telefono"),
             "nombre": st.column_config.TextColumn("nombre"),
             "id_cuenta": st.column_config.TextColumn("id_cuenta"),
@@ -356,7 +364,7 @@ if password == CLAVE_MAESTRA:
                 fechas_convertidas = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
                 df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_convertidas]
             
-            # AJUSTE CRÍTICO: Limpiamos la caché global de Streamlit antes de enviar los datos para evitar que Google rechace la firma JWT vieja
+            # Limpiamos la caché global justo antes de actualizar para forzar un nuevo JWT Token limpio
             st.cache_data.clear()
             
             conn.update(data=df_editado)
