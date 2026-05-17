@@ -260,7 +260,7 @@ if password == CLAVE_MAESTRA:
                 with st.expander(f"🚨 PENDIENTE: {nombre_completo} - Cuenta: {id_u} - Venció: {fecha_vence_str}"):
                     msg_deudor = (
                         f"Hola {primer_nombre} 🚨\n"
-                        f"Te escribo para recordarte que tenemos pendiente el pago de la renovación de tu servicio vencido el {fecha_vence_str}.\n\n"
+                        f"Te escribo para recordarte que tenemos pendiente el pago de la renovación de tu servicio.\n\n"
                         f"Te dejo por aquí los datos para que puedas ponerte al día.\n"
                         f"Banco: Bancamiga\n"
                         f"13024234\n"
