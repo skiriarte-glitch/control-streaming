@@ -4,24 +4,27 @@ import pandas as pd
 from datetime import datetime, timedelta
 import urllib.parse
 
+# Configuración del nombre en la pestaña del navegador
 st.set_page_config(page_title="Control Streaming", layout="wide")
 st.title("🎬 Control Streaming")
 
+# --- CONTRASEÑA ---
 CLAVE_MAESTRA = "Z2599393F" 
+
+# Conexión a la base de datos
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- CONEXIÓN A LAS 3 HOJAS ---
+# --- CONEXIÓN A LAS 2 HOJAS ---
 try:
+    # Leemos la hoja principal (ahora se debe llamar "Clientes" en tu Google Sheets)
     df = conn.read(worksheet="Clientes", ttl="1m")
     df.columns = [str(c).strip().lower().replace('é', 'e').replace('ó', 'o') for c in df.columns]
     
-    df_compras = conn.read(worksheet="Compras_Proveedor", ttl="1m")
-    df_compras.columns = [str(c).strip().lower() for c in df_compras.columns]
-    
+    # Leemos la hoja del historial
     df_historial = conn.read(worksheet="Historial_Mensual", ttl="1m")
     df_historial.columns = [str(c).strip().lower() for c in df_historial.columns]
 except Exception as e:
-    st.error("⚠️ Error leyendo Google Sheets. Verifica que las pestañas se llamen: Clientes, Compras_Proveedor y Historial_Mensual.")
+    st.error("⚠️ Asegúrate de que las pestañas en Google Sheets se llamen exactamente 'Clientes' y 'Historial_Mensual'.")
     st.stop()
 
 password = st.sidebar.text_input("Contraseña", type="password")
@@ -33,17 +36,18 @@ if password == CLAVE_MAESTRA:
     fecha_hoy = datetime(ahora.year, ahora.month, ahora.day)
     fecha_limite_cobro = fecha_hoy + timedelta(days=2)
 
+    # Preparar el DataFrame convirtiendo fechas con formato mixto
     if 'vencimiento' in df.columns:
         df['vencimiento'] = pd.to_datetime(df['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
         df = df.sort_values(by='vencimiento')
 
-    # CREACIÓN DE 3 PESTAÑAS
-    tab1, tab3, tab2 = st.tabs(["🗃️ Panel de Gestión", "📦 Proveedores", "📊 Reporte Financiero"])
+    # CREACIÓN DE PESTAÑAS
+    tab1, tab2 = st.tabs(["🗃️ Panel de Gestión", "📊 Reporte Financiero"])
 
-    # =========================================================================
-    # PESTAÑA 1: GESTIÓN DE CLIENTES
-    # =========================================================================
     with tab1:
+        # =========================================================================
+        # 1. 🚦 PERFILES DISPONIBLES
+        # =========================================================================
         st.markdown("### 🚦 Perfiles Disponibles")
         condicion_libre = pd.Series(False, index=df.index)
         if 'estatus' in df.columns:
@@ -51,14 +55,21 @@ if password == CLAVE_MAESTRA:
                               (df['nombre'].str.lower().str.contains('disponible|libre|vacante', na=False)) | \
                               (df['nombre'].isna()) | (df['nombre'].str.strip() == "")
             disponibles = df[condicion_libre]
+            
             if not disponibles.empty:
                 for idx, row in disponibles.iterrows():
                     st.success(f"✨ **{row.get('servicio', 'Servicio')}** disponible en cuenta: `{row.get('id_cuenta', 'S/D')}`")
             else:
                 st.write("No tienes cupos libres por ahora.")
 
+        # Listas para organizar los siguientes grupos
         clientes_activos = df[~condicion_libre].copy()
-        lista_prepagados, lista_pendiente_renovar_pagados, lista_pagos_pendientes, lista_proximos_vencer, lista_activos, lista_inactivos = [], [], [], [], [], []
+        lista_prepagados = []
+        lista_pendiente_renovar_pagados = []
+        lista_pagos_pendientes = []
+        lista_proximos_vencer = []
+        lista_activos = []
+        lista_inactivos = [] 
 
         for index, row in clientes_activos.iterrows():
             raw_nombre = row.get('nombre', '')
@@ -74,77 +85,263 @@ if password == CLAVE_MAESTRA:
             if pd.isna(vence_dt): continue
             fecha_vence = datetime(vence_dt.year, vence_dt.month, vence_dt.day)
             
-            try: meses_adelanto = 0 if pd.isna(row.get('meses_adelanto', 0)) or str(row.get('meses_adelanto', 0)).strip() == "" else int(float(row.get('meses_adelanto', 0)))
-            except: meses_adelanto = 0
+            raw_meses = row.get('meses_adelanto', 0)
+            try:
+                meses_adelanto = 0 if pd.isna(raw_meses) or str(raw_meses).strip() == "" else int(float(raw_meses))
+            except:
+                meses_adelanto = 0
 
-            if meses_adelanto > 0: lista_prepagados.append((row, nombre_completo, primer_nombre))
-            elif estatus == 'pagado': lista_pendiente_renovar_pagados.append((row, nombre_completo, primer_nombre))
-            elif estatus == 'pendiente' or (fecha_vence < fecha_hoy and estatus != 'pagado'): lista_pagos_pendientes.append((row, nombre_completo, primer_nombre))
-            elif estatus != 'pagado' and (fecha_hoy <= fecha_vence <= fecha_limite_cobro): lista_proximos_vencer.append((row, nombre_completo, primer_nombre))
-            else: lista_activos.append((row, nombre_completo, primer_nombre, fecha_vence))
+            # Distribución de grupos
+            if meses_adelanto > 0:
+                lista_prepagados.append((row, nombre_completo, primer_nombre))
+            elif estatus == 'pagado':
+                lista_pendiente_renovar_pagados.append((row, nombre_completo, primer_nombre))
+            elif estatus == 'pendiente' or (fecha_vence < fecha_hoy and estatus != 'pagado'):
+                lista_pagos_pendientes.append((row, nombre_completo, primer_nombre))
+            elif estatus != 'pagado' and (fecha_hoy <= fecha_vence <= fecha_limite_cobro):
+                lista_proximos_vencer.append((row, nombre_completo, primer_nombre))
+            else:
+                lista_activos.append((row, nombre_completo, primer_nombre, fecha_vence))
 
-        # --- SECCIONES WHATSAPP (Mantenidas idénticas por brevedad visual, funcionan igual) ---
+        # =========================================================================
+        # 2. ✅ PREPAGADOS POR ACTUALIZAR
+        # =========================================================================
         if len(lista_prepagados) > 0:
             st.divider()
             st.markdown("### ✅ Prepagado")
             for item in lista_prepagados:
                 row, nombre_completo, primer_nombre = item
-                id_u, clave, servicio = row.get('id_cuenta', 'S/D'), row.get('clave', 'S/D'), str(row.get('servicio', 'Servicio')).strip()
+                servicio = str(row.get('servicio', 'Servicio')).strip()
+                id_u = row.get('id_cuenta', 'S/D')
+                clave = row.get('clave', 'S/D')
+                precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
                 vence_dt = row['vencimiento']
+                fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
                 meses_restantes = int(float(row.get('meses_adelanto', 0)))
-                with st.expander(f"✅ PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} - Vence: {vence_dt.strftime('%d-%m-%Y')}"):
-                    msg = f"Hola {primer_nombre} 🫂\nTu recarga ha sido procesada.\nUsuario: {id_u}\nClave: {clave}"
-                    num = ''.join(filter(str.isdigit, str(row.get('telefono', '')).split('.')[0]))
-                    if len(num) == 10: num = f"58{num}"
-                    st.markdown(f'<a href="https://api.whatsapp.com/send?phone={num}&text={urllib.parse.quote(msg)}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px;">🚀 Enviar Claves</button></a>', unsafe_allow_html=True)
 
+                with st.expander(f"✅ PREPAGADO ({meses_restantes} meses a favor): {nombre_completo} - Cuenta: {id_u} - Vence: {fecha_vence_str}"):
+                    conexiones = "1"
+                    if "flujotv" in servicio.lower():
+                        if precio == 6: conexiones = "2"
+                        elif precio >= 9: conexiones = "3"
+                    elif "jumangistv" in servicio.lower():
+                        conexiones = "3"
+
+                    msg_prepagado = (
+                        f"Hola {primer_nombre} 🫂\n\n"
+                        f"Tu recarga ha sido procesada exitosamente. ✨\n"
+                        f"Aquí tienes los datos de acceso para que sigas disfrutando de tu servicio.\n\n"
+                        f"⚡️Conexiones: {conexiones}\n"
+                        f"📆 Próximo corte: {fecha_vence_str}\n\n"
+                    )
+                    
+                    if "jumangistv" in servicio.lower():
+                        msg_prepagado += f"🛜Host/URL: http://jumangis.cloud:2082n"
+                    
+                    msg_prepagado += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
+                    
+                    if "flujotv" in servicio.lower():
+                        msg_prepagado += f"🚯 PIN contenido adulto: 1234\n"
+                    
+                    msg_prepagado += f"\n¡Disfruta de tus contenidos favoritos! 📩"
+                    
+                    num = str(row.get('telefono', '')).split('.')[0].strip()
+                    num = ''.join(filter(str.isdigit, num)) 
+                    if num != "":
+                        if num.startswith("0"): num = num[1:] 
+                        if len(num) == 10: num = f"58{num}"   
+                    
+                    texto_url = urllib.parse.quote(msg_prepagado)
+                    link_prepagado = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
+                    
+                    st.markdown(f'<a href="{link_prepagado}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#007BFF; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Claves (Sin Cobrar)</button></a>', unsafe_allow_html=True)
+
+        # =========================================================================
+        # 3. ⏳ PENDIENTES POR RENOVAR
+        # =========================================================================
         if len(lista_pendiente_renovar_pagados) > 0:
             st.divider()
             st.markdown("### ⏳ Renovar")
             for item in lista_pendiente_renovar_pagados:
                 row, nombre_completo, primer_nombre = item
-                id_u, clave = row.get('id_cuenta', 'S/D'), row.get('clave', 'S/D')
-                with st.expander(f"⏳ RENOVAR: {nombre_completo} - Cuenta: {id_u}"):
-                    msg = f"Hola {primer_nombre} 🫂\n¡Gracias por tu pago! Tu servicio ha sido renovado.\nUsuario: {id_u}\nClave: {clave}"
-                    num = ''.join(filter(str.isdigit, str(row.get('telefono', '')).split('.')[0]))
-                    if len(num) == 10: num = f"58{num}"
-                    st.markdown(f'<a href="https://api.whatsapp.com/send?phone={num}&text={urllib.parse.quote(msg)}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px;">🚀 Enviar Nuevos Datos</button></a>', unsafe_allow_html=True)
+                servicio = str(row.get('servicio', 'Servicio')).strip()
+                id_u = row.get('id_cuenta', 'S/D')
+                clave = row.get('clave', 'S/D')
+                precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
+                vence_dt = row['vencimiento']
+                fecha_vence_str = vence_dt.strftime('%d-%m-%Y %H:%M:%S')
 
+                with st.expander(f"⏳ RENOVAR: {nombre_completo} - Cuenta: {id_u}"):
+                    conexiones = "1"
+                    if "flujotv" in servicio.lower():
+                        if precio == 6: conexiones = "2"
+                        elif precio >= 9: conexiones = "3"
+                    elif "jumangistv" in servicio.lower():
+                        conexiones = "3"
+
+                    msg_entrega_pendiente = (
+                        f"Hola {primer_nombre} 🫂\n\n"
+                        f"¡Gracias por tu pago! Tu servicio ha sido renovado. ✨\n"
+                        f"Aquí tienes los datos correspondientes para tu ingreso:\n\n"
+                        f"⚡️Conexiones: {conexiones}\n"
+                        f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
+                    )
+                    
+                    if "jumangistv" in servicio.lower():
+                        msg_entrega_pendiente += f"🛜Host/URL: http://jumangis.cloud:2082n"
+                    if "flujotv" in servicio.lower():
+                        msg_entrega_pendiente += f"🚯 PIN contenido adulto: 1234\n"
+                        
+                    msg_entrega_pendiente += f"\n¡Gracias por tu fidelidad! Quedo a la orden. 📩"
+                    
+                    num = str(row.get('telefono', '')).split('.')[0].strip()
+                    num = ''.join(filter(str.isdigit, num))
+                    if num != "":
+                        if num.startswith("0"): num = num[1:]
+                        if len(num) == 10: num = f"58{num}"
+                    
+                    texto_url = urllib.parse.quote(msg_entrega_pendiente)
+                    link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
+                    
+                    st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Enviar Nuevos Datos</button></a>', unsafe_allow_html=True)
+
+        # =========================================================================
+        # 4. ⚠️ PRÓXIMOS A VENCER
+        # =========================================================================
         if len(lista_proximos_vencer) > 0:
             st.divider()
             st.markdown("### ⚠️ Próximos a Vencer")
             for item in lista_proximos_vencer:
                 row, nombre_completo, primer_nombre = item
+                servicio = str(row.get('servicio', 'Servicio')).strip()
+                id_u = row.get('id_cuenta', 'S/D')
                 precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
                 vence_dt = row['vencimiento']
+                fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
                 monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
-                with st.expander(f"⚠️ PRÓXIMO A VENCER: {nombre_completo} - Vence: {vence_dt.strftime('%d-%m-%Y')}"):
-                    msg = f"Hola {primer_nombre} 🫂\nTe recordamos que tu servicio vence el {vence_dt.strftime('%d-%m-%Y')}. Monto: {monto_bs} Bs."
-                    num = ''.join(filter(str.isdigit, str(row.get('telefono', '')).split('.')[0]))
-                    if len(num) == 10: num = f"58{num}"
-                    st.markdown(f'<a href="https://api.whatsapp.com/send?phone={num}&text={urllib.parse.quote(msg)}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFC107; color:black; border:none; padding:8px 16px; border-radius:4px;">📲 Enviar Recordatorio</button></a>', unsafe_allow_html=True)
+                
+                with st.expander(f"⚠️ PRÓXIMO A VENCER: {nombre_completo} - Cuenta: {id_u} - Vence: {fecha_vence_str}"):
+                    msg_preventivo = (
+                        f"Hola {primer_nombre} 🫂\n\n"
+                        f"Ya está disponible la renovación de tu suscripción.\n\n"
+                        f"Si deseas renovar, te dejo los datos de pago.\n\n"
+                        f"Bancamiga\n"
+                        f"13024234\n"
+                        f"04246379018\n"
+                        f"Concepto en *BLANCO* o *PAGO*\n"
+                        f"*{monto_bs} Bs.*\n\n"
+                        f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
+                        f"Quedo atenta ante cualquier duda ✨"
+                    )
+                    
+                    num = str(row.get('telefono', '')).split('.')[0].strip()
+                    num = ''.join(filter(str.isdigit, num))
+                    if num != "":
+                        if num.startswith("0"): num = num[1:]
+                        if len(num) == 10: num = f"58{num}"
+                    
+                    texto_url = urllib.parse.quote(msg_preventivo)
+                    link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
+                    
+                    st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#FFC107; color:black; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">📲 Enviar Recordatorio Standard</button></a>', unsafe_allow_html=True)
 
+        # =========================================================================
+        # 5. 🚨 PAGOS PENDIENTES
+        # =========================================================================
         if len(lista_pagos_pendientes) > 0:
             st.divider()
             st.markdown("### 🚨 Pagos Pendientes")
             for item in lista_pagos_pendientes:
                 row, nombre_completo, primer_nombre = item
+                servicio = str(row.get('servicio', 'Servicio')).strip()
+                id_u = row.get('id_cuenta', 'S/D')
+                precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
                 vence_dt = row['vencimiento']
-                with st.expander(f"🚨 PENDIENTE: {nombre_completo} - Venció: {vence_dt.strftime('%d-%m-%Y')}"):
-                    msg = f"Hola {primer_nombre} 🚨\nTu servicio se encuentra vencido desde el {vence_dt.strftime('%d-%m-%Y')}."
-                    num = ''.join(filter(str.isdigit, str(row.get('telefono', '')).split('.')[0]))
-                    if len(num) == 10: num = f"58{num}"
-                    st.markdown(f'<a href="https://api.whatsapp.com/send?phone={num}&text={urllib.parse.quote(msg)}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#DC3545; color:white; border:none; padding:8px 16px; border-radius:4px;">🛑 Enviar Aviso</button></a>', unsafe_allow_html=True)
+                fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+                monto_bs = "{:,.2f}".format(precio * tasa_dia).replace(",", "X").replace(".", ",").replace("X", ".")
+                
+                with st.expander(f"🚨 PENDIENTE: {nombre_completo} - Cuenta: {id_u} - Venció: {fecha_vence_str}"):
+                    msg_deudor = (
+                        f"Hola {primer_nombre} 🚨\n"
+                        f"Te escribo para recordarte que tenemos pendiente el pago de la renovación de tu servicio vencido el {fecha_vence_str}.\n\n"
+                        f"Te dejo por aquí los datos para que puedas ponerte al día.\n"
+                        f"Banco: Bancamiga\n"
+                        f"13024234\n"
+                        f"04246379018\n"
+                        f"*{monto_bs} Bs.*\n\n"
+                        f"Concepto en *BLANCO* o *PAGO*\n"
+                        f"Solicita el correo si deseas pagar por Binance o Zelle 💵\n\n"
+                        f"Quedo atenta ante cualquier duda. ¡Gracias! ✨"
+                    )
+                    
+                    num = str(row.get('telefono', '')).split('.')[0].strip()
+                    num = ''.join(filter(str.isdigit, num))
+                    if num != "":
+                        if num.startswith("0"): num = num[1:]
+                        if len(num) == 10: num = f"58{num}"
+                    
+                    texto_url = urllib.parse.quote(msg_deudor)
+                    link_cobro = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
+                    
+                    st.markdown(f'<a href="{link_cobro}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#DC3545; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🛑 Enviar Aviso de Deuda/Corte</button></a>', unsafe_allow_html=True)
         
+        # =========================================================================
+        # 6. 🟢 ACTIVOS
+        # =========================================================================
         if len(lista_activos) > 0:
             st.divider()
             st.markdown("### 🟢 Activos")
+            lista_activos.sort(key=lambda x: x[3])
             for item in lista_activos:
                 row, nombre_completo, primer_nombre, _ = item
-                with st.expander(f"🟢 ACTIVO: {nombre_completo} - Vence: {row['vencimiento'].strftime('%d-%m-%Y')}"):
+                servicio = str(row.get('servicio', 'Servicio')).strip()
+                id_u = row.get('id_cuenta', 'S/D')
+                clave = row.get('clave', 'S/D')
+                precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
+                vence_dt = row['vencimiento']
+                fecha_vence_str = vence_dt.strftime('%d-%m-%Y')
+                
+                with st.expander(f"🟢 ACTIVO: {nombre_completo} ({id_u}) - Vence: {fecha_vence_str}"):
                     st.write("Cliente al día.")
+                    
+                    conexiones = "1"
+                    if "flujotv" in servicio.lower():
+                        if precio == 6: conexiones = "2"
+                        elif precio >= 9: conexiones = "3"
+                    elif "jumangistv" in servicio.lower():
+                        conexiones = "3"
 
-        # --- EDITOR ---
+                    msg_entrega = (
+                        f"✨ Aquí están tus datos de acceso. No los compartas con nadie. "
+                        f"Asegúrate de que no se exceda tu número máximo de conexiones permitidas.\n\n"
+                        f"⚡️Conexiones: {conexiones}\n"
+                        f"📆 Próxima renovación: {fecha_vence_str}\n\n"
+                    )
+                    
+                    if "jumangistv" in servicio.lower():
+                        msg_entrega += f"🛜Host/URL: http://jumangis.cloud:2082n"
+                    
+                    msg_entrega += f"👤 Usuario: {id_u}\n🔐 Contraseña: {clave}\n"
+                    
+                    if "flujotv" in servicio.lower():
+                        msg_entrega += f"🚯 PIN contenido adulto: 1234\n"
+                    
+                    msg_entrega += f"\n¡Disfruta de tus contenidos favoritos! Si necesitas ayuda, no dudes en contactarme. 📩"
+                    
+                    num = str(row.get('telefono', '')).split('.')[0].strip()
+                    num = ''.join(filter(str.isdigit, num))
+                    if num != "":
+                        if num.startswith("0"): num = num[1:]
+                        if len(num) == 10: num = f"58{num}"
+                    
+                    texto_url = urllib.parse.quote(msg_entrega)
+                    link_entrega = f"https://api.whatsapp.com/send?phone={num}&text={texto_url}"
+                    
+                    st.markdown(f'<a href="{link_entrega}" target="whatsapp" style="text-decoration:none;"><button style="background-color:#28A745; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">🚀 Re-Enviar Datos de Acceso</button></a>', unsafe_allow_html=True)
+
+        # =========================================================================
+        # 7. 📝 BASE DE DATOS
+        # =========================================================================
         st.divider()
         st.subheader("📝 Base de Datos")
         df_editor = df.copy()
@@ -152,112 +349,130 @@ if password == CLAVE_MAESTRA:
             df_editor['es_inactivo'] = df_editor['estatus'].str.lower().str.contains('inactivo|cancelado', na=False)
             df_editor = df_editor.sort_values(by=['es_inactivo', 'vencimiento'], ascending=[True, True]).reset_index(drop=True).drop(columns=['es_inactivo'])
         
-        for col in ["clave", "telefono", "nombre", "id_cuenta", "estatus", "servicio"]: 
+        columnas_texto = ["clave", "telefono", "nombre", "id_cuenta", "estatus", "servicio"]
+        for col in columnas_texto: 
             if col in df_editor.columns: df_editor[col] = df_editor[col].fillna('').astype(str).replace('nan', '')
         if 'vencimiento' in df_editor.columns: df_editor['vencimiento'] = df_editor['vencimiento'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('')
         
         df_editado = st.data_editor(df_editor, num_rows="dynamic", use_container_width=True)
-        if st.button("💾 Guardar Cambios en Clientes"):
-            if 'vencimiento' in df_editado.columns:
-                fechas_c = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
-                df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_c]
-            st.cache_data.clear()
-            conn.update(worksheet="Clientes", data=df_editado)
-            st.success("¡Datos guardados!")
-            st.rerun()
-
-    # =========================================================================
-    # PESTAÑA 2: PROVEEDORES (NUEVA)
-    # =========================================================================
-    with tab3:
-        st.subheader("🛒 Registro de Compras al Proveedor")
-        st.write("Registra aquí cada vez que le pagues al proveedor por nuevos créditos.")
-        
-        with st.form("registro_compras"):
-            col1, col2 = st.columns(2)
-            fecha_c = col1.date_input("Fecha de compra", value=ahora)
-            prov_c = col2.selectbox("Plataforma", ["FlujoTV", "JumangisTV", "Otro"])
-            creditos_c = col1.number_input("Créditos comprados", min_value=1, step=1)
-            monto_c = col2.number_input("Monto pagado ($ USD)", min_value=0.1, step=0.5)
-            
-            if st.form_submit_button("💳 Registrar Compra"):
-                nueva_fila = pd.DataFrame([{
-                    "fecha": fecha_c.strftime("%d/%m/%Y"),
-                    "proveedor": prov_c,
-                    "creditos": creditos_c,
-                    "monto_usd": monto_c
-                }])
-                df_compras_actualizado = pd.concat([df_compras, nueva_fila], ignore_index=True)
+        if st.button("💾 Guardar Cambios en Google Sheets"):
+            try:
+                if 'vencimiento' in df_editado.columns:
+                    fechas_c = pd.to_datetime(df_editado['vencimiento'], dayfirst=True, format='mixed', errors='coerce')
+                    df_editado['vencimiento'] = [x.strftime('%d/%m/%Y %H:%M:%S') if pd.notna(x) else '' for x in fechas_c]
                 st.cache_data.clear()
-                conn.update(worksheet="Compras_Proveedor", data=df_compras_actualizado)
-                st.success("¡Compra registrada en el libro diario con éxito!")
+                conn.update(worksheet="Clientes", data=df_editado)
+                st.success("¡Datos guardados!")
                 st.rerun()
-                
-        st.divider()
-        st.markdown("### 📋 Libro Diario de Compras")
-        if not df_compras.empty:
-            st.dataframe(df_compras, use_container_width=True)
-        else:
-            st.info("Aún no has registrado compras.")
+            except Exception as e: st.error(f"Error: {e}")
+
+        # =========================================================================
+        # 8. ❌ CLIENTES INACTIVOS
+        # =========================================================================
+        if len(lista_inactivos) > 0:
+            st.divider()
+            st.markdown("### ❌ Clientes Inactivos")
+            for item in lista_inactivos:
+                row, nombre_completo, _ = item
+                with st.expander(f"❌ INACTIVO: {nombre_completo}"):
+                    st.write(f"Usuario: {row.get('id_cuenta', 'S/D')}")
 
     # =========================================================================
-    # PESTAÑA 3: REPORTE FINANCIERO Y CIERRE
+    # 📊 PESTAÑA 2: REPORTE FINANCIERO Y CIERRE
     # =========================================================================
     with tab2:
-        st.subheader("📊 Reportes en Vivo")
+        st.subheader("📊 Reportes y Cierre de Mes")
         
-        # --- Cálculo de Ingresos (Los que están al día) ---
-        ingreso_total = 0.0
-        clientes_reporte = lista_prepagados + lista_pendiente_renovar_pagados + lista_proximos_vencer + lista_activos
+        flujo_cuentas_dict = {}
+        juman_cuentas_dict = {}
+
+        # AQUÍ SE INCLUYEN LOS MOROSOS (lista_pagos_pendientes) PARA EL CIERRE
+        clientes_reporte = lista_prepagados + lista_pendiente_renovar_pagados + lista_proximos_vencer + lista_activos + lista_pagos_pendientes
+
         for item in clientes_reporte:
-            precio = float(item[0].get('precio_usd', 0)) if not pd.isna(item[0].get('precio_usd', 0)) else 0.0
-            ingreso_total += precio
+            row = item[0]
+            servicio = str(row.get('servicio', '')).strip().lower()
+            id_u = str(row.get('id_cuenta', '')).strip().lower()
+            precio = float(row.get('precio_usd', 0)) if not pd.isna(row.get('precio_usd', 0)) else 0.0
 
-        # --- Cálculo de Gastos Reales (De la hoja de compras) ---
-        gasto_real = pd.to_numeric(df_compras['monto_usd'], errors='coerce').sum() if not df_compras.empty else 0.0
-        creditos_totales = pd.to_numeric(df_compras['creditos'], errors='coerce').sum() if not df_compras.empty else 0
-        ganancia_neta = ingreso_total - gasto_real
+            if id_u == "" or id_u == "s/d" or id_u == "nan": id_u = f"sin_id_{row.name}"
 
+            if "flujo" in servicio:
+                if id_u not in flujo_cuentas_dict: flujo_cuentas_dict[id_u] = {'tipo': 'pantalla', 'ingreso': 0.0}
+                flujo_cuentas_dict[id_u]['ingreso'] += precio
+                if precio >= 9: flujo_cuentas_dict[id_u]['tipo'] = 'completa'
+            elif "jumangis" in servicio:
+                if id_u not in juman_cuentas_dict: juman_cuentas_dict[id_u] = {'ingreso': 0.0}
+                juman_cuentas_dict[id_u]['ingreso'] += precio
+
+        flujo_completas = sum(1 for d in flujo_cuentas_dict.values() if d['tipo'] == 'completa')
+        flujo_pantallas_acc = sum(1 for d in flujo_cuentas_dict.values() if d['tipo'] == 'pantalla')
+        flujo_ingreso = sum(d['ingreso'] for d in flujo_cuentas_dict.values())
+        flujo_costo = (flujo_completas + flujo_pantallas_acc) * 3.0
+
+        juman_cuentas = len(juman_cuentas_dict)
+        juman_ingreso = sum(d['ingreso'] for d in juman_cuentas_dict.values())
+        juman_costo = juman_cuentas * 1.5
+
+        # --- TOTALES PARA EL CIERRE ---
+        cuentas_totales = flujo_completas + flujo_pantallas_acc + juman_cuentas
+        ingreso_total = flujo_ingreso + juman_ingreso
+        costo_total = flujo_costo + juman_costo
+        ganancia_total = ingreso_total - costo_total
+
+        # Métricas visuales
         m1, m2, m3 = st.columns(3)
-        m1.metric("💰 Ingreso Asegurado", f"${ingreso_total:,.2f} USD")
-        m2.metric("📉 Gastos Proveedor", f"${gasto_real:,.2f} USD")
-        m3.metric("✨ Ganancia Neta Actual", f"${ganancia_neta:,.2f} USD")
+        m1.metric("💰 Ingreso del Ciclo", f"${ingreso_total:,.2f} USD")
+        m2.metric("📉 Costos Proveedores", f"${costo_total:,.2f} USD")
+        m3.metric("✨ Ganancia Neta", f"${ganancia_total:,.2f} USD")
+
+        st.divider()
+        st.markdown("### 📈 Comparativa de Rentabilidad")
+        
+        data_grafico = pd.DataFrame({
+            "Monto ($)": [flujo_ingreso, flujo_costo, juman_ingreso, juman_costo],
+            "Categoría": ["Ingreso", "Costo", "Ingreso", "Costo"],
+            "Servicio": ["FlujoTV", "FlujoTV", "JumangisTV", "JumangisTV"]
+        })
+        st.bar_chart(data=data_grafico, x="Servicio", y="Monto ($)", color="Categoría", stack=False)
+
+        st.divider()
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown(f"**🎬 FlujoTV**\n\n* Cuentas activas: {flujo_completas + flujo_pantallas_acc}\n* Ingreso: ${flujo_ingreso:.2f}\n* Ganancia: ${flujo_ingreso - flujo_costo:.2f}")
+        with col_b:
+            st.markdown(f"**🎥 JumangisTV**\n\n* Cuentas activas: {juman_cuentas}\n* Ingreso: ${juman_ingreso:.2f}\n* Ganancia: ${juman_ingreso - juman_costo:.2f}")
 
         st.divider()
         
-        # --- EL BOTÓN DE CIERRE ---
-        st.markdown("### 💾 Guardar Cierre de Mes")
+        # =========================================================================
+        # BOTÓN DE CIERRE DE MES Y TABLA DE HISTORIAL
+        # =========================================================================
+        st.markdown("### 💾 Guardar Cierre Mensual")
         mes_actual_str = ahora.strftime("%m/%Y")
-        st.info(f"Haz clic aquí a final de mes para guardar estos números en tu historial anual.")
+        st.info(f"Haz clic aquí a final de mes para congelar estos números y guardarlos en tu historial anual.")
         
         if st.button(f"Registrar Cierre de {mes_actual_str}"):
+            # Crea una nueva fila con los datos de hoy
             nueva_fila_hist = pd.DataFrame([{
                 "mes": mes_actual_str,
+                "cuentas_vendidas": cuentas_totales,
                 "ingresos": ingreso_total,
-                "gastos": gasto_real,
-                "ganancia": ganancia_neta,
-                "creditos": creditos_totales
+                "costos": costo_total,
+                "ganancia": ganancia_total
             }])
+            # La une al historial existente y la sube a Google Sheets
             df_hist_actualizado = pd.concat([df_historial, nueva_fila_hist], ignore_index=True)
             st.cache_data.clear()
             conn.update(worksheet="Historial_Mensual", data=df_hist_actualizado)
             st.success(f"¡Cierre de {mes_actual_str} guardado exitosamente!")
             st.rerun()
 
-        # --- HISTORIAL ANUAL ---
-        st.divider()
-        st.markdown("### 📈 Historial Anual (Estado de Resultados)")
+        st.markdown("### 🗓️ Historial Anual (Estado de Resultados)")
         if not df_historial.empty:
             st.dataframe(df_historial, use_container_width=True)
-            # Gráfico comparativo de meses
-            if 'ingresos' in df_historial.columns and 'ganancia' in df_historial.columns:
-                try:
-                    df_grafico = df_historial.set_index("mes")[["ingresos", "gastos", "ganancia"]]
-                    st.bar_chart(df_grafico)
-                except:
-                    pass
         else:
-            st.write("Aún no tienes cierres de mes registrados.")
+            st.write("Aún no tienes cierres de mes registrados. Tu tabla aparecerá aquí.")
 
 else:
     st.info("Introduce la contraseña para gestionar el sistema.")
